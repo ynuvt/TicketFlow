@@ -1,6 +1,6 @@
 import { orderRepository, CreateOrderInput } from '../repositories/order.repository';
 import { validateStateTransition, OrderStatus } from '../domain/stateMachine';
-import { distributedLockService } from './lock.service';
+import { distributedLockService } from './lock.services';
 
 export interface OrderEventRecord {
   id: string;
