@@ -1,0 +1,29 @@
+{
+  "name": "@ticketflow/backend",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/spike/server.js",
+  "scripts": {
+    "dev": "tsx watch src/spike/server.ts",
+    "build": "tsc && prisma generate",
+    "test:spike": "tsx src/spike/testSpike.ts",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "@ticketflow/types": "*",
+    "express": "^4.21.2",
+    "ioredis": "^5.4.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/ioredis": "^5.0.0",
+    "@types/node": "^22.10.7",
+    "prisma": "5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.2"
+  }
+}

@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum OrderStatus {
+  PLACED
+  PREPARING
+  READY
+  SERVED
+}
+
+model Kitchen {
+  id        String       @id @default(uuid())
+  name      String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  stations  Station[]
+  orders    Order[]
+  events    OrderEvent[]
+}
+
+model Station {
+  id           String   @id @default(uuid())
+  kitchenId    String
+  name         String
+  displayOrder Int
+  route        String
+  createdAt    DateTime @default(now())
+
+  kitchen Kitchen @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+
+  @@index([kitchenId, displayOrder])
+}
+
+model Order {
+  id                String      @id @default(uuid())
+  kitchenId         String
+  customerName      String
+  items             String
+  priority          Int         @default(0)
+  estimatedPrepTime Int
+  status            OrderStatus @default(PLACED)
+  currentStationId  String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  kitchen Kitchen      @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  events  OrderEvent[]
+
+  @@index([kitchenId, currentStationId, status])
+}
+
+model OrderEvent {
+  id             String   @id @default(uuid())
+  sequenceNumber BigInt
+  kitchenId      String
+  orderId        String
+  type           String
+  payload        Json
+  createdAt      DateTime @default(now())
+
+  kitchen Kitchen @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([kitchenId, sequenceNumber])
+  @@index([kitchenId, sequenceNumber])
+}

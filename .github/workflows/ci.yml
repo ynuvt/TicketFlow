@@ -1,0 +1,52 @@
+name: TicketFlow CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  verify:
+    name: Verify & Build Monorepo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Monorepo Dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client (Backend)
+        run: |
+          cd apps/backend
+          npx prisma generate
+
+      - name: Typecheck Frontend
+        run: |
+          cd apps/frontend
+          npx tsc --noEmit
+
+      - name: Typecheck Backend
+        run: |
+          cd apps/backend
+          npx tsc --noEmit
+
+      - name: Build Monorepo Apps
+        run: npm run build
+
+      - name: Deploy Frontend to Cloudflare Pages (Production)
+        if: github.ref == 'refs/heads/main' && secrets.CLOUDFLARE_API_TOKEN != ''
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ticketflow-frontend
+          directory: apps/frontend/dist
