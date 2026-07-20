@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { globalEventStore } from './eventStore';
-import { ReplayRequestPayload, ReplayResponsePayload } from '../types/events';
+import { ReplayRequestPayload, ReplayResponsePayload, OrderStatus } from '../types/events';
 
 const app = express();
 const httpServer = createServer(app);
@@ -18,7 +18,7 @@ io.on('connection', (socket: Socket) => {
     socket.join(room);
   });
 
-  socket.on('order:transition', (data: { kitchenId: string; orderId: string; newStatus: string; stationId?: string }) => {
+  socket.on('order:transition', (data: { kitchenId: string; orderId: string; newStatus: OrderStatus; stationId?: string }) => {
     const event = globalEventStore.appendEvent(
       data.kitchenId,
       data.orderId,
