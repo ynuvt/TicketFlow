@@ -2,9 +2,10 @@
   "name": "@ticketflow/backend",
   "version": "1.0.0",
   "private": true,
-  "main": "dist/spike/server.js",
+  "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/spike/server.ts",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
     "build": "tsc && prisma generate",
     "test:spike": "tsx src/spike/testSpike.ts",
     "db:generate": "prisma generate",
