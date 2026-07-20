@@ -8,7 +8,7 @@ on:
 
 jobs:
   verify:
-    name: Verify & Build Monorepo
+    name: 1. Verify & Typecheck Monorepo
     runs-on: ubuntu-latest
 
     steps:
@@ -42,11 +42,43 @@ jobs:
       - name: Build Monorepo Apps
         run: npm run build
 
-      - name: Deploy Frontend to Cloudflare Pages (Production)
-        if: github.ref == 'refs/heads/main' && secrets.CLOUDFLARE_API_TOKEN != ''
+  deploy-frontend:
+    name: 2. Deploy Frontend (Cloudflare Pages)
+    needs: verify
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies & Build Frontend
+        run: |
+          npm ci
+          cd apps/frontend
+          npm run build
+
+      - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ticketflow-frontend
           directory: apps/frontend/dist
+
+  deploy-backend:
+    name: 3. Deploy Backend (Render)
+    needs: verify
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.RENDER_DEPLOY_HOOK_URL != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render Deploy Hook
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
