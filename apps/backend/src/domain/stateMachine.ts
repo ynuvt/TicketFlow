@@ -15,6 +15,10 @@ export class InvalidStateTransitionError extends Error {
 }
 
 export function validateStateTransition(currentStatus: OrderStatus, targetStatus: OrderStatus): void {
+  // Same status is valid for station movement (e.g. PREPARING -> PREPARING from prep to grill line)
+  if (currentStatus === targetStatus) {
+    return;
+  }
   const allowed = ALLOWED_TRANSITIONS[currentStatus] || [];
   if (!allowed.includes(targetStatus)) {
     throw new InvalidStateTransitionError(currentStatus, targetStatus);

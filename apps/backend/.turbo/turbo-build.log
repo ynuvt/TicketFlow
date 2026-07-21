@@ -1,0 +1,12 @@
+
+> @ticketflow/backend@1.0.0 build
+> tsc && prisma generate
+
+Prisma schema loaded from prisma\schema.prisma
+
+✔ Generated Prisma Client (v5.22.0) to .\..\..\node_modules\@prisma\client in 215ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Want to turn off tips and other hints? https://pris.ly/tip-4-nohints
+

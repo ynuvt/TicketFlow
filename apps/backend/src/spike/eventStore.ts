@@ -1,4 +1,4 @@
-import { KitchenEvent, EventType } from '../types/events';
+import { KitchenEvent, EventType } from '@ticketflow/types';
 
 export class InMemoryEventStore {
   private events: Map<string, KitchenEvent[]> = new Map();
@@ -36,9 +36,14 @@ export class InMemoryEventStore {
     return kitchenEvents.filter((evt) => evt.sequenceNumber > lastProcessedSequence);
   }
 
+  public getAllEvents(kitchenId: string): KitchenEvent[] {
+    return this.events.get(kitchenId) || [];
+  }
+
   public getLatestSequence(kitchenId: string): number {
     return this.sequences.get(kitchenId) || 0;
   }
 }
 
 export const globalEventStore = new InMemoryEventStore();
+
