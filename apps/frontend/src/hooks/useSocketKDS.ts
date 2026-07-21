@@ -269,6 +269,21 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
 
   const transitionOrder = useCallback(
     (orderId: string, currentStatus: OrderStatus, newStatus: OrderStatus, stationId?: StationId) => {
+      // Optimistic local state update (instant card transition on click)
+      setOrders((prevOrders) =>
+        prevOrders.map((o) => {
+          if (o.id === orderId) {
+            return {
+              ...o,
+              status: newStatus,
+              currentStationId: stationId || o.currentStationId,
+              updatedAt: Date.now(),
+            };
+          }
+          return o;
+        })
+      );
+
       if (!socketRef.current || !socketRef.current.connected) return;
       socketRef.current.emit('order:transition', {
         kitchenId: KITCHEN_ID,

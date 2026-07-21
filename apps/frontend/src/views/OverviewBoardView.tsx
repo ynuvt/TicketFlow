@@ -26,15 +26,19 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
         const config = STATIONS[stId];
         const isOnline = stationNetworks[stId];
 
-        const columnOrders = orders.filter((o) => {
-          if (o.status === 'SERVED') return false;
-          return o.currentStationId === stId;
-        });
+        const columnOrders = isOnline
+          ? orders.filter((o) => {
+              if (o.status === 'SERVED') return false;
+              return o.currentStationId === stId;
+            })
+          : [];
 
         return (
           <div
             key={stId}
-            className="w-[85vw] sm:w-[320px] md:w-auto shrink-0 snap-center flex flex-col bg-white border border-slate-200/80 rounded-2xl p-4 min-h-[500px] shadow-sm"
+            className={`w-[85vw] sm:w-[320px] md:w-auto shrink-0 snap-center flex flex-col border rounded-2xl p-4 min-h-[500px] shadow-sm transition-all ${
+              isOnline ? 'bg-white border-slate-200/80' : 'bg-rose-50/40 border-rose-200/80'
+            }`}
           >
             {/* Column Header */}
             <div className="pb-3 border-b border-slate-200/80 mb-4 flex items-center justify-between">
@@ -54,7 +58,7 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
                 className={`p-1.5 rounded-lg border transition-colors ${
                   isOnline
                     ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
-                    : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100 animate-pulse'
+                    : 'bg-rose-100 text-rose-700 border-rose-300 hover:bg-rose-200 animate-pulse'
                 }`}
                 title={`Toggle station network ${isOnline ? 'OFF' : 'ON'}`}
               >
@@ -64,7 +68,15 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
 
             {/* Column Order Tickets */}
             <div className="flex-1 space-y-4 overflow-y-auto max-h-[70vh]">
-              {columnOrders.length === 0 ? (
+              {!isOnline ? (
+                <div className="py-16 text-center text-xs font-medium text-rose-500 border border-dashed border-rose-300 rounded-xl bg-rose-50/60 p-4 space-y-2">
+                  <WifiOff className="w-6 h-6 mx-auto text-rose-400 animate-pulse" />
+                  <p className="font-bold">Station Network Offline</p>
+                  <p className="text-[11px] text-rose-400">
+                    No orders fetched while disconnected. Click Wifi icon above to reconnect and sync tickets.
+                  </p>
+                </div>
+              ) : columnOrders.length === 0 ? (
                 <div className="py-16 text-center text-xs font-medium text-slate-400 border border-dashed border-slate-200 rounded-xl">
                   No active tickets
                 </div>
