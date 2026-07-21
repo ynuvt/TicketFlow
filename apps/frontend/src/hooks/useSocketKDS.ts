@@ -8,6 +8,7 @@ import {
   CreateOrderPayload,
   ReplayResponsePayload,
 } from '@ticketflow/types';
+import { kitchenAudio } from '../utils/audio';
 
 const SOCKET_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:4000';
 const KITCHEN_ID = 'kitchen-main';
@@ -69,6 +70,13 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
           updatedAt: event.timestamp,
         };
         orderMap.set(event.orderId, newOrder);
+
+        // Sound trigger for new order
+        if (payload.priority === 'VIP' || payload.priority === 'HIGH') {
+          kitchenAudio.playVipTicketSound();
+        } else {
+          kitchenAudio.playNewTicketSound();
+        }
       } else if (event.type === 'ORDER_TRANSITIONED') {
         const existing = orderMap.get(event.orderId);
         if (existing) {
@@ -79,6 +87,13 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
             updatedAt: event.timestamp,
           };
           orderMap.set(event.orderId, updated);
+
+          // Sound trigger for state transition or served
+          if (payload.newStatus === 'SERVED') {
+            kitchenAudio.playServedSound();
+          } else {
+            kitchenAudio.playStatusTransitionSound();
+          }
         }
       }
 

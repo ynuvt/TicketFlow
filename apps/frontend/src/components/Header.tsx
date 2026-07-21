@@ -1,6 +1,7 @@
-import React from 'react';
-import { Wifi, WifiOff, RefreshCw, Activity, Layers, PlusCircle, ShieldCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { Wifi, WifiOff, RefreshCw, Activity, Layers, PlusCircle, ShieldCheck, Volume2, VolumeX } from 'lucide-react';
 import { StationRoute } from '@ticketflow/types';
+import { kitchenAudio } from '../utils/audio';
 
 interface HeaderProps {
   connectionStatus: 'CONNECTING' | 'ONLINE' | 'SYNCING' | 'DISCONNECTED';
@@ -22,6 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleGlobalNetwork,
   onOpenAuditLog,
 }) => {
+  const [isMuted, setIsMuted] = useState<boolean>(kitchenAudio.getMuted());
   const isOnline = connectionStatus === 'ONLINE';
   const isSyncing = connectionStatus === 'SYNCING';
 
@@ -109,6 +111,22 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Activity className="w-3.5 h-3.5 text-amber-400" />
             <span>Audit Log</span>
+          </button>
+
+          {/* Audio Mute/Unmute Toggle */}
+          <button
+            onClick={() => {
+              const muted = kitchenAudio.toggleMute();
+              setIsMuted(muted);
+            }}
+            className={`p-1.5 rounded-lg border text-xs font-semibold flex items-center transition-colors ${
+              isMuted
+                ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
+                : 'bg-slate-800 text-amber-400 border-slate-700 hover:bg-slate-700'
+            }`}
+            title={isMuted ? 'Audio Alerts Muted (Click to Unmute)' : 'Audio Alerts Enabled (Click to Mute)'}
+          >
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </button>
 
           {/* Global Network Simulation Switch */}
