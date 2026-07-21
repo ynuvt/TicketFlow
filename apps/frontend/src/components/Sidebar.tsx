@@ -12,16 +12,24 @@ import {
   Bell,
   Settings,
   Ticket,
-  CheckCircle2,
+  X,
 } from 'lucide-react';
 
 interface SidebarProps {
   currentPath: string;
   onNavigate: (path: string) => void;
   isSystemOnline: boolean;
+  isOpenMobile?: boolean;
+  onCloseMobile?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isSystemOnline }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  currentPath,
+  onNavigate,
+  isSystemOnline,
+  isOpenMobile = false,
+  onCloseMobile,
+}) => {
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'All Stations', path: '/all-stations', icon: LayoutGrid },
@@ -43,55 +51,64 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isSys
     return currentPath === itemPath;
   };
 
-  return (
-    <aside className="w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between shrink-0 min-h-screen select-none">
+  const content = (
+    <div className="h-full flex flex-col justify-between select-none">
       <div>
         {/* Brand Header */}
-        <div className="p-6 pb-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
-            <Ticket className="w-5 h-5 font-bold" />
+        <div className="p-5 pb-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Chef Logo" className="w-10 h-10 object-contain rounded-xl border border-amber-200/80 bg-amber-50/50 p-0.5 shadow-sm" />
+            <div>
+              <h1 className="text-lg font-bold text-slate-900 leading-tight">Ticket Flow</h1>
+              <p className="text-xs font-semibold text-amber-600">KDS Master Edition</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-900 leading-tight">Ticket Flow</h1>
-            <p className="text-xs font-semibold text-blue-600">KDS v1.0</p>
-          </div>
+
+          {/* Close Mobile Drawer Button */}
+          {onCloseMobile && (
+            <button
+              onClick={onCloseMobile}
+              className="md:hidden p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Navigation Items */}
-  <nav className="px-3 py-2 space-y-1">
-  {navItems.map((item) => {
-    const Icon = item.icon;
-    const active = isActivePath(item.path);
+        <nav className="px-3 py-2 space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActivePath(item.path);
 
-    return (
-      <a
-        key={item.path}
-        href={item.path}
-        onClick={(e) => {
-          // If Ctrl (Windows/Linux) or Cmd (Mac) is pressed, let browser open in new tab natively
-          if (e.ctrlKey || e.metaKey) {
-            return; 
-          }
-          // Otherwise prevent full page reload and navigate using SPA client router
-          e.preventDefault();
-          onNavigate(item.path);
-        }}
-        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-          active
-            ? 'bg-blue-50 text-blue-600 font-bold shadow-sm'
-            : 'text-slate-600 hover:bg-slate-100/70 hover:text-slate-900'
-        }`}
-      >
-        <Icon className={`w-4 h-4 ${active ? 'text-blue-600' : 'text-slate-500'}`} />
-        <span>{item.name}</span>
-      </a>
-    );
-  })}
-</nav>
-</div>
+            return (
+              <a
+                key={item.path}
+                href={item.path}
+                onClick={(e) => {
+                  if (e.ctrlKey || e.metaKey) {
+                    return;
+                  }
+                  e.preventDefault();
+                  onNavigate(item.path);
+                  if (onCloseMobile) onCloseMobile();
+                }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  active
+                    ? 'bg-blue-50 text-blue-600 font-bold shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100/70 hover:text-slate-900'
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${active ? 'text-blue-600' : 'text-slate-500'}`} />
+                <span>{item.name}</span>
+              </a>
+            );
+          })}
+        </nav>
+      </div>
 
       {/* Footer Section */}
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-3">
         {/* Network Status Card */}
         <div className="bg-slate-50 border border-slate-200/80 p-3 rounded-2xl flex items-center justify-between text-xs">
           <div>
@@ -110,6 +127,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isSys
           <p>KDS v1.0</p>
         </div>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-64 bg-white border-r border-slate-200/80 flex-col shrink-0 min-h-screen">
+        {content}
+      </aside>
+
+      {/* Mobile Drawer Overlay */}
+      {isOpenMobile && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+            onClick={onCloseMobile}
+          />
+          <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl z-10 overflow-y-auto">
+            {content}
+          </div>
+        </div>
+      )}
+    </>
   );
 };

@@ -21,6 +21,8 @@ export interface StationNetworkMap {
   expedite: boolean;
 }
 
+const LOCAL_STORAGE_KEY = 'ticketflow_station_networks';
+
 const DEFAULT_STATION_NETWORKS: StationNetworkMap = {
   intake: true,
   prep: true,
@@ -29,6 +31,18 @@ const DEFAULT_STATION_NETWORKS: StationNetworkMap = {
   expedite: true,
 };
 
+function getInitialStationNetworks(): StationNetworkMap {
+  try {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (saved) {
+      return { ...DEFAULT_STATION_NETWORKS, ...JSON.parse(saved) };
+    }
+  } catch {
+    // Fallback if unavailable
+  }
+  return DEFAULT_STATION_NETWORKS;
+}
+
 export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager') {
   const [orders, setOrders] = useState<Order[]>([]);
   const [events, setEvents] = useState<KitchenEvent[]>([]);
@@ -36,7 +50,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
   const [connectionStatus, setConnectionStatus] = useState<'CONNECTING' | 'ONLINE' | 'SYNCING' | 'DISCONNECTED'>(
     'CONNECTING'
   );
-  const [stationNetworks, setStationNetworks] = useState<StationNetworkMap>(DEFAULT_STATION_NETWORKS);
+  const [stationNetworks, setStationNetworks] = useState<StationNetworkMap>(getInitialStationNetworks);
   const [reconnectedCount, setReconnectedCount] = useState<number>(0);
 
   const socketRef = useRef<Socket | null>(null);
@@ -134,16 +148,6 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
   // Handle incoming live event
   const handleIncomingEvent = useCallback(
     (event: KitchenEvent) => {
-      const targetStation = event.payload.stationId || activeStationId;
-
-      // Drop/ignore if target station network is manually turned OFF
-      if (!isStationOnline(targetStation) && activeStationId !== 'overview' && activeStationId !== 'manager') {
-        console.log(
-          `[KDS Engine] Event #${event.sequenceNumber} ignored because station ${targetStation} network is OFF`
-        );
-        return;
-      }
-
       if (statusRef.current === 'SYNCING') {
         liveBufferRef.current.push(event);
         return;
@@ -282,8 +286,11 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     (stationId: StationId) => {
       setStationNetworks((prev) => {
         const updated = { ...prev, [stationId]: !prev[stationId] };
-        const isTurningOn = updated[stationId];
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
 
+        const isTurningOn = updated[stationId];
         if (isTurningOn) {
           console.log(`[Network Simulation] Station '${stationId}' network turned ON. Triggering replay sync...`);
           setTimeout(() => {
@@ -309,6 +316,10 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         assembly: online,
         expedite: online,
       };
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newNetworks));
+      } catch {}
+
       setStationNetworks(newNetworks);
 
       if (online) {

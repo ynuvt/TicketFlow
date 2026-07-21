@@ -11,6 +11,7 @@ import {
 } from '@ticketflow/types';
 import { validateStateTransition } from '../domain/stateMachine';
 import { generateUsers } from 'indseed';
+import { orderRepository } from '../repositories/order.repository';
 
 const app = express();
 const httpServer = createServer(app);
@@ -59,7 +60,7 @@ function seedInitialOrders(kitchenId: string) {
       customerName: `${users[1]?.fullName || 'Ananya Patel'} - Chicken Feast Combo`,
       priority: 'HIGH',
       estimatedPrepTime: 12,
-      stationId: 'prep',
+      stationId: 'intake',
       items: [
         { id: 'i4', name: 'Chicken Tikka Supreme Pizza', quantity: 1, notes: 'Double chicken tikka, thin crust' },
         { id: 'i5', name: 'Crispy Chicken Zinger Burger', quantity: 1, notes: 'Spicy mayo & lettuce' },
@@ -71,7 +72,7 @@ function seedInitialOrders(kitchenId: string) {
       customerName: `${users[2]?.fullName || 'Rohan Verma'} - Indo-Italian Combo`,
       priority: 'NORMAL',
       estimatedPrepTime: 14,
-      stationId: 'grill',
+      stationId: 'intake',
       items: [
         { id: 'i7', name: 'Chicken Pepperoni Feast Pizza', quantity: 1, notes: 'Extra chicken pepperoni' },
         { id: 'i8', name: 'Classic Veggie Herb Burger', quantity: 1, notes: 'Whole wheat bun' },
@@ -80,17 +81,39 @@ function seedInitialOrders(kitchenId: string) {
     },
   ];
 
-  sampleOrders.forEach((ordPayload) => {
-    const orderId = `ord-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const event = globalEventStore.appendEvent(kitchenId, orderId, 'ORDER_CREATED', {
-      newStatus: 'PLACED',
-      stationId: ordPayload.stationId || 'intake',
-      customerName: ordPayload.customerName,
-      items: ordPayload.items,
-      priority: ordPayload.priority || 'NORMAL',
-      estimatedPrepTime: ordPayload.estimatedPrepTime || 10,
-    });
-    console.log(`[Seed] Created order ${orderId} (Seq #${event.sequenceNumber})`);
+  sampleOrders.forEach(async (ordPayload) => {
+    try {
+      const dbResult = await orderRepository.createOrder({
+        kitchenId,
+        customerName: ordPayload.customerName,
+        items: ordPayload.items as any,
+        priority: ordPayload.priority === 'VIP' ? 2 : ordPayload.priority === 'HIGH' ? 1 : 0,
+        estimatedPrepTime: ordPayload.estimatedPrepTime || 10,
+        initialStationId: ordPayload.stationId || 'intake',
+      });
+
+      const event = globalEventStore.appendEvent(kitchenId, dbResult.order.id, 'ORDER_CREATED', {
+        newStatus: 'PLACED',
+        stationId: ordPayload.stationId || 'intake',
+        customerName: ordPayload.customerName,
+        items: ordPayload.items,
+        priority: ordPayload.priority || 'NORMAL',
+        estimatedPrepTime: ordPayload.estimatedPrepTime || 10,
+      });
+      console.log(`[Seed DB] Saved order ${dbResult.order.id} to database (Seq #${event.sequenceNumber})`);
+    } catch (err: any) {
+      // Memory fallback if DB unavailable
+      const orderId = `ord-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const event = globalEventStore.appendEvent(kitchenId, orderId, 'ORDER_CREATED', {
+        newStatus: 'PLACED',
+        stationId: ordPayload.stationId || 'intake',
+        customerName: ordPayload.customerName,
+        items: ordPayload.items,
+        priority: ordPayload.priority || 'NORMAL',
+        estimatedPrepTime: ordPayload.estimatedPrepTime || 10,
+      });
+      console.log(`[Seed Memory] Created order ${orderId} (Seq #${event.sequenceNumber})`);
+    }
   });
 }
 
@@ -105,27 +128,39 @@ app.get('/api/events', (req: Request, res: Response) => {
   res.json({ kitchenId, events, latestSequence: globalEventStore.getLatestSequence(kitchenId) });
 });
 
-app.post('/api/orders', (req: Request, res: Response) => {
+app.post('/api/orders', async (req: Request, res: Response) => {
   const data: CreateOrderPayload = req.body;
   const kitchenId = data.kitchenId || DEFAULT_KITCHEN_ID;
-  const orderId = `ord-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
-  const event = globalEventStore.appendEvent(kitchenId, orderId, 'ORDER_CREATED', {
-    newStatus: 'PLACED',
-    stationId: data.stationId || 'intake',
-    customerName: data.customerName,
-    items: data.items,
-    priority: data.priority || 'NORMAL',
-    estimatedPrepTime: data.estimatedPrepTime || 10,
-  });
+  try {
+    const dbResult = await orderRepository.createOrder({
+      kitchenId,
+      customerName: data.customerName,
+      items: data.items as any,
+      priority: data.priority === 'VIP' ? 2 : data.priority === 'HIGH' ? 1 : 0,
+      estimatedPrepTime: data.estimatedPrepTime || 10,
+      initialStationId: data.stationId || 'intake',
+    });
 
-  const room = `kitchen:${kitchenId}`;
-  io.to(room).emit('order:transition', event);
+    const event = globalEventStore.appendEvent(kitchenId, dbResult.order.id, 'ORDER_CREATED', {
+      newStatus: 'PLACED',
+      stationId: data.stationId || 'intake',
+      customerName: data.customerName,
+      items: data.items,
+      priority: data.priority || 'NORMAL',
+      estimatedPrepTime: data.estimatedPrepTime || 10,
+    });
 
-  res.status(201).json({ success: true, orderId, event });
+    const room = `kitchen:${kitchenId}`;
+    io.to(room).emit('order:transition', event);
+
+    res.status(201).json({ success: true, orderId: dbResult.order.id, event });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
-app.post('/api/orders/:id/transition', (req: Request, res: Response) => {
+app.post('/api/orders/:id/transition', async (req: Request, res: Response) => {
   const orderId = String(req.params.id);
   const { kitchenId = DEFAULT_KITCHEN_ID, currentStatus, newStatus, stationId } = req.body;
 
@@ -133,6 +168,13 @@ app.post('/api/orders/:id/transition', (req: Request, res: Response) => {
     if (currentStatus && newStatus) {
       validateStateTransition(currentStatus as OrderStatus, newStatus as OrderStatus);
     }
+
+    await orderRepository.transitionOrder({
+      orderId,
+      kitchenId,
+      targetStatus: newStatus as OrderStatus,
+      nextStationId: stationId,
+    });
 
     const event = globalEventStore.appendEvent(kitchenId, orderId, 'ORDER_TRANSITIONED', {
       previousStatus: currentStatus,
@@ -159,26 +201,38 @@ io.on('connection', (socket: Socket) => {
     console.log(`[Socket] Client ${socket.id} joined ${room} for station ${stationId}`);
   });
 
-  socket.on('order:create', (data: CreateOrderPayload) => {
+  socket.on('order:create', async (data: CreateOrderPayload) => {
     const kitchenId = data.kitchenId || DEFAULT_KITCHEN_ID;
-    const orderId = `ord-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
-    const event = globalEventStore.appendEvent(kitchenId, orderId, 'ORDER_CREATED', {
-      newStatus: 'PLACED',
-      stationId: data.stationId || 'intake',
-      customerName: data.customerName,
-      items: data.items,
-      priority: data.priority || 'NORMAL',
-      estimatedPrepTime: data.estimatedPrepTime || 10,
-    });
+    try {
+      const dbResult = await orderRepository.createOrder({
+        kitchenId,
+        customerName: data.customerName,
+        items: data.items as any,
+        priority: data.priority === 'VIP' ? 2 : data.priority === 'HIGH' ? 1 : 0,
+        estimatedPrepTime: data.estimatedPrepTime || 10,
+        initialStationId: data.stationId || 'intake',
+      });
 
-    const room = `kitchen:${kitchenId}`;
-    io.to(room).emit('order:transition', event);
+      const event = globalEventStore.appendEvent(kitchenId, dbResult.order.id, 'ORDER_CREATED', {
+        newStatus: 'PLACED',
+        stationId: data.stationId || 'intake',
+        customerName: data.customerName,
+        items: data.items,
+        priority: data.priority || 'NORMAL',
+        estimatedPrepTime: data.estimatedPrepTime || 10,
+      });
+
+      const room = `kitchen:${kitchenId}`;
+      io.to(room).emit('order:transition', event);
+    } catch (err: any) {
+      console.error('[Socket] Failed to create order in DB:', err.message);
+    }
   });
 
   socket.on(
     'order:transition',
-    (data: {
+    async (data: {
       kitchenId: string;
       orderId: string;
       currentStatus?: OrderStatus;
@@ -189,20 +243,26 @@ io.on('connection', (socket: Socket) => {
         if (data.currentStatus) {
           validateStateTransition(data.currentStatus, data.newStatus);
         }
+
+        await orderRepository.transitionOrder({
+          orderId: data.orderId,
+          kitchenId: data.kitchenId,
+          targetStatus: data.newStatus,
+          nextStationId: data.stationId,
+        });
+
+        const event = globalEventStore.appendEvent(data.kitchenId, data.orderId, 'ORDER_TRANSITIONED', {
+          previousStatus: data.currentStatus,
+          newStatus: data.newStatus,
+          stationId: data.stationId,
+        });
+
+        const room = `kitchen:${data.kitchenId}`;
+        io.to(room).emit('order:transition', event);
       } catch (err: any) {
         console.error(`[Socket] Transition rejected for order ${data.orderId}:`, err.message);
         socket.emit('order:error', { message: err.message, orderId: data.orderId });
-        return;
       }
-
-      const event = globalEventStore.appendEvent(data.kitchenId, data.orderId, 'ORDER_TRANSITIONED', {
-        previousStatus: data.currentStatus,
-        newStatus: data.newStatus,
-        stationId: data.stationId,
-      });
-
-      const room = `kitchen:${data.kitchenId}`;
-      io.to(room).emit('order:transition', event);
     }
   );
 

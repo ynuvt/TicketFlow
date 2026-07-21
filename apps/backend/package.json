@@ -10,7 +10,8 @@
     "test:spike": "tsx src/spike/testSpike.ts",
     "seed": "tsx src/spike/sendSampleData.ts",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",

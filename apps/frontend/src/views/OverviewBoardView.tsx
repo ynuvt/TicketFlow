@@ -21,7 +21,7 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
   const stationKeys: StationId[] = ['intake', 'prep', 'grill', 'assembly', 'expedite'];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
+    <div className="flex md:grid md:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-5 overflow-x-auto pb-4 snap-x snap-mandatory">
       {stationKeys.map((stId) => {
         const config = STATIONS[stId];
         const isOnline = stationNetworks[stId];
@@ -32,7 +32,10 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
         });
 
         return (
-          <div key={stId} className="flex flex-col bg-white border border-slate-200/80 rounded-2xl p-4 min-h-[550px] shadow-sm">
+          <div
+            key={stId}
+            className="w-[85vw] sm:w-[320px] md:w-auto shrink-0 snap-center flex flex-col bg-white border border-slate-200/80 rounded-2xl p-4 min-h-[500px] shadow-sm"
+          >
             {/* Column Header */}
             <div className="pb-3 border-b border-slate-200/80 mb-4 flex items-center justify-between">
               <div>
@@ -60,7 +63,7 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
             </div>
 
             {/* Column Order Tickets */}
-            <div className="flex-1 space-y-4">
+            <div className="flex-1 space-y-4 overflow-y-auto max-h-[70vh]">
               {columnOrders.length === 0 ? (
                 <div className="py-16 text-center text-xs font-medium text-slate-400 border border-dashed border-slate-200 rounded-xl">
                   No active tickets

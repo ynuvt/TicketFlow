@@ -15,22 +15,30 @@ enum OrderStatus {
   SERVED
 }
 
+enum OrderPriority {
+  NORMAL
+  HIGH
+  VIP
+}
+
 model Kitchen {
-  id        String       @id @default(uuid())
-  name      String
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id        String          @id @default(uuid())
+  name      String          @default("Main Kitchen")
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
   stations  Station[]
   orders    Order[]
   events    OrderEvent[]
+  metrics   KitchenMetric[]
 }
 
 model Station {
   id           String   @id @default(uuid())
   kitchenId    String
   name         String
-  displayOrder Int
+  displayOrder Int      @default(0)
   route        String
+  isOnline     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
   kitchen Kitchen @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
@@ -39,21 +47,35 @@ model Station {
 }
 
 model Order {
-  id                String      @id @default(uuid())
+  id                String        @id @default(uuid())
   kitchenId         String
   customerName      String
-  items             String
-  priority          Int         @default(0)
-  estimatedPrepTime Int
-  status            OrderStatus @default(PLACED)
-  currentStationId  String?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  priority          OrderPriority @default(NORMAL)
+  estimatedPrepTime Int           @default(10)
+  status            OrderStatus   @default(PLACED)
+  currentStationId  String        @default("intake")
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
-  kitchen Kitchen      @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
-  events  OrderEvent[]
+  kitchen    Kitchen      @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  events     OrderEvent[]
 
   @@index([kitchenId, currentStationId, status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  name      String
+  quantity  Int      @default(1)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
 }
 
 model OrderEvent {
@@ -70,4 +92,20 @@ model OrderEvent {
 
   @@unique([kitchenId, sequenceNumber])
   @@index([kitchenId, sequenceNumber])
+}
+
+model KitchenMetric {
+  id                 String   @id @default(uuid())
+  kitchenId          String
+  date               String
+  totalOrders        Int      @default(0)
+  completedOrders    Int      @default(0)
+  avgPrepTimeMinutes Float    @default(0)
+  slaBreaches        Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  kitchen Kitchen @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+
+  @@unique([kitchenId, date])
 }

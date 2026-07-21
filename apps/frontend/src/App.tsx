@@ -19,6 +19,7 @@ export default function App() {
   const { currentPath, navigate } = useRouter();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [isAuditLogOpen, setIsAuditLogOpen] = useState<boolean>(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Derive station route from path for socket engine
   const getStationIdFromPath = (path: string): StationId | 'overview' | 'manager' => {
@@ -203,11 +204,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex font-sans selection:bg-blue-600 selection:text-white">
-      {/* Sidebar Navigation */}
+      {/* Sidebar Navigation (Desktop & Mobile Drawer) */}
       <Sidebar
         currentPath={currentPath}
         onNavigate={navigate}
         isSystemOnline={isOnline}
+        isOpenMobile={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main App Content Area */}
@@ -219,10 +222,11 @@ export default function App() {
           isOnline={isOnline}
           onRefresh={requestReplay}
           onOpenAuditLog={() => setIsAuditLogOpen(true)}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         />
 
         {/* Dynamic Route View */}
-        <main className="flex-1 p-8 overflow-y-auto">{renderCurrentView()}</main>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">{renderCurrentView()}</main>
       </div>
 
       {/* Create Order Modal */}

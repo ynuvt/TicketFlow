@@ -4,8 +4,8 @@ import { OrderStatus } from '../domain/stateMachine';
 export interface CreateOrderInput {
   kitchenId: string;
   customerName: string;
-  items: string[];
-  priority?: number;
+  items: Array<{ id?: string; name: string; quantity: number; notes?: string }>;
+  priority?: 'NORMAL' | 'HIGH' | 'VIP' | number;
   estimatedPrepTime: number;
   initialStationId?: string;
 }
@@ -20,22 +20,44 @@ export interface TransitionOrderInput {
 export class OrderRepository {
   public async createOrder(input: CreateOrderInput) {
     return prisma.$transaction(async (tx: any) => {
+      await tx.kitchen.upsert({
+        where: { id: input.kitchenId },
+        update: {},
+        create: { id: input.kitchenId, name: 'Main Kitchen' },
+      });
+
       const lastEvent = await tx.orderEvent.findFirst({
         where: { kitchenId: input.kitchenId },
         orderBy: { sequenceNumber: 'desc' },
       });
 
       const nextSequence = lastEvent ? Number(lastEvent.sequenceNumber) + 1 : 1;
+      const priorityEnum = typeof input.priority === 'string'
+        ? (input.priority as 'NORMAL' | 'HIGH' | 'VIP')
+        : input.priority === 2
+        ? 'VIP'
+        : input.priority === 1
+        ? 'HIGH'
+        : 'NORMAL';
 
       const order = await tx.order.create({
         data: {
           kitchenId: input.kitchenId,
           customerName: input.customerName,
-          items: JSON.stringify(input.items),
-          priority: input.priority || 0,
+          priority: priorityEnum,
           estimatedPrepTime: input.estimatedPrepTime,
           status: 'PLACED',
-          currentStationId: input.initialStationId,
+          currentStationId: input.initialStationId || 'intake',
+          orderItems: {
+            create: (input.items || []).map((item) => ({
+              name: item.name,
+              quantity: item.quantity || 1,
+              notes: item.notes || null,
+            })),
+          },
+        },
+        include: {
+          orderItems: true,
         },
       });
 
@@ -82,6 +104,9 @@ export class OrderRepository {
           status: input.targetStatus,
           currentStationId: input.nextStationId ?? existingOrder.currentStationId,
         },
+        include: {
+          orderItems: true,
+        },
       });
 
       const event = await tx.orderEvent.create({
@@ -125,6 +150,9 @@ export class OrderRepository {
       where: {
         kitchenId,
         currentStationId: stationId,
+      },
+      include: {
+        orderItems: true,
       },
       orderBy: [
         { priority: 'desc' },
