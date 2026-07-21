@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Order, OrderStatus, StationId } from '@ticketflow/types';
 import { STATIONS } from '../types/kds';
-import { Clock, ArrowRight, CheckCircle2, AlertTriangle, User, ShieldAlert } from 'lucide-react';
+import { Clock, ArrowRight, CheckCircle2, User, ShieldAlert } from 'lucide-react';
 
 interface OrderTicketProps {
   order: Order;
@@ -9,7 +9,7 @@ interface OrderTicketProps {
   activeStationId?: StationId | 'overview' | 'manager';
 }
 
-export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrder, activeStationId }) => {
+export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrder }) => {
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(
     Math.floor((Date.now() - order.createdAt) / 1000)
   );
@@ -25,27 +25,25 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
   const seconds = elapsedSeconds % 60;
   const formattedTimer = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
-  // Urgency status based on elapsed time vs estimated prep time
   const isUrgent = minutes >= order.estimatedPrepTime;
   const isWarning = minutes >= Math.floor(order.estimatedPrepTime * 0.75);
 
   const getTimerBadgeStyle = () => {
-    if (isUrgent) return 'bg-rose-500/20 text-rose-400 border-rose-500/40 animate-pulse';
-    if (isWarning) return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
-    return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+    if (isUrgent) return 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse';
+    if (isWarning) return 'bg-amber-50 text-amber-700 border-amber-200';
+    return 'bg-emerald-50 text-emerald-700 border-emerald-200';
   };
 
   const currentStationConfig = STATIONS[order.currentStationId] || STATIONS.intake;
 
-  // Determine next status and target station
   const getNextAction = () => {
     switch (order.status) {
       case 'PLACED':
         return { targetStatus: 'PREPARING' as OrderStatus, targetStation: 'prep' as StationId, label: 'Start Prep' };
       case 'PREPARING':
-        return { targetStatus: 'READY' as OrderStatus, targetStation: 'assembly' as StationId, label: 'Finish Prep / Plating' };
+        return { targetStatus: 'READY' as OrderStatus, targetStation: 'assembly' as StationId, label: 'Finish Prep' };
       case 'READY':
-        return { targetStatus: 'SERVED' as OrderStatus, targetStation: 'expedite' as StationId, label: 'Serve & Complete' };
+        return { targetStatus: 'SERVED' as OrderStatus, targetStation: 'expedite' as StationId, label: 'Serve Order' };
       default:
         return null;
     }
@@ -54,25 +52,25 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
   const action = getNextAction();
 
   return (
-    <div className={`bg-slate-900 rounded-xl border ${currentStationConfig.borderColor} shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between overflow-hidden group`}>
+    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex flex-col justify-between overflow-hidden">
       {/* Ticket Header */}
-      <div className="p-4 border-b border-slate-800/80 bg-slate-900/60 flex items-start justify-between gap-3">
+      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="font-mono text-xs font-bold text-slate-400">#{order.id.slice(-6).toUpperCase()}</span>
             {order.priority === 'VIP' && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
                 <ShieldAlert className="w-3 h-3" /> VIP
               </span>
             )}
             {order.priority === 'HIGH' && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                 RUSH
               </span>
             )}
           </div>
-          <h3 className="text-base font-bold text-white flex items-center gap-1.5">
-            <User className="w-4 h-4 text-slate-400" />
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+            <User className="w-3.5 h-3.5 text-slate-400" />
             {order.customerName}
           </h3>
         </div>
@@ -88,21 +86,21 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
       <div className="p-4 flex-1 space-y-2.5">
         <div className="flex items-center justify-between text-xs font-medium text-slate-400 mb-1">
           <span>ITEMS ({order.items.reduce((acc, item) => acc + item.quantity, 0)})</span>
-          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${currentStationConfig.badgeColor}`}>
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-50 text-blue-700 border border-blue-100">
             {currentStationConfig.name}
           </span>
         </div>
 
         <div className="space-y-2">
           {order.items.map((item) => (
-            <div key={item.id} className="flex items-start gap-2.5 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
-              <span className="w-5 h-5 rounded bg-amber-500/20 text-amber-400 font-mono font-bold text-xs flex items-center justify-center border border-amber-500/30">
+            <div key={item.id} className="flex items-start gap-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <span className="w-5 h-5 rounded bg-blue-100 text-blue-700 font-mono font-bold text-xs flex items-center justify-center">
                 {item.quantity}x
               </span>
               <div className="flex-1">
-                <p className="text-sm font-semibold text-slate-200">{item.name}</p>
+                <p className="text-xs font-bold text-slate-800">{item.name}</p>
                 {item.notes && (
-                  <p className="text-xs text-amber-400/90 italic mt-0.5">Note: {item.notes}</p>
+                  <p className="text-[11px] text-amber-700 italic mt-0.5">Note: {item.notes}</p>
                 )}
               </div>
             </div>
@@ -111,25 +109,25 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
       </div>
 
       {/* Ticket Footer & Actions */}
-      <div className="p-3 bg-slate-950/80 border-t border-slate-800 flex items-center justify-between gap-2">
-        <div className="text-[11px] font-mono text-slate-500">
-          Status: <span className="text-slate-300 font-semibold">{order.status}</span>
+      <div className="p-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between gap-2">
+        <div className="text-[11px] font-mono text-slate-400">
+          Status: <span className="text-slate-700 font-bold">{order.status}</span>
         </div>
 
         {action && (
           <button
             onClick={() => onTransitionOrder(order.id, order.status, action.targetStatus, action.targetStation)}
-            className="px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm shadow-blue-500/20 flex items-center gap-1.5 transition-all"
           >
             <span>{action.label}</span>
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
         )}
 
         {order.status === 'SERVED' && (
-          <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Served & Completed</span>
+          <div className="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Served</span>
           </div>
         )}
       </div>

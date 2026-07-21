@@ -21,7 +21,7 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
   const stationKeys: StationId[] = ['intake', 'prep', 'grill', 'assembly', 'expedite'];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
       {stationKeys.map((stId) => {
         const config = STATIONS[stId];
         const isOnline = stationNetworks[stId];
@@ -32,26 +32,26 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
         });
 
         return (
-          <div key={stId} className="flex flex-col bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5 min-h-[500px]">
+          <div key={stId} className="flex flex-col bg-white border border-slate-200/80 rounded-2xl p-4 min-h-[550px] shadow-sm">
             {/* Column Header */}
-            <div className="pb-3 border-b border-slate-800 mb-3 flex items-center justify-between">
+            <div className="pb-3 border-b border-slate-200/80 mb-4 flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="text-sm font-bold text-white">{config.name}</h3>
-                  <span className="text-xs font-mono font-bold text-amber-400">({columnOrders.length})</span>
+                  <h3 className="text-sm font-bold text-slate-900">{config.name}</h3>
+                  <span className="text-xs font-mono font-bold text-blue-600">({columnOrders.length})</span>
                 </div>
-                <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${config.badgeColor}`}>
+                <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600">
                   {stId}
                 </span>
               </div>
 
-              {/* Network Toggle Button for Column */}
+              {/* Network Toggle Button */}
               <button
                 onClick={() => onToggleStationNetwork(stId)}
                 className={`p-1.5 rounded-lg border transition-colors ${
                   isOnline
-                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                    : 'bg-rose-500/20 text-rose-400 border-rose-500/30 hover:bg-rose-500/30 animate-pulse'
+                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                    : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100 animate-pulse'
                 }`}
                 title={`Toggle station network ${isOnline ? 'OFF' : 'ON'}`}
               >
@@ -62,7 +62,7 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
             {/* Column Order Tickets */}
             <div className="flex-1 space-y-4">
               {columnOrders.length === 0 ? (
-                <div className="py-12 text-center text-xs text-slate-500 font-mono border border-dashed border-slate-800 rounded-xl">
+                <div className="py-16 text-center text-xs font-medium text-slate-400 border border-dashed border-slate-200 rounded-xl">
                   No active tickets
                 </div>
               ) : (

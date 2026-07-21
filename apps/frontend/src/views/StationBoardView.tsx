@@ -2,7 +2,7 @@ import React from 'react';
 import { Order, OrderStatus, StationId } from '@ticketflow/types';
 import { STATIONS } from '../types/kds';
 import { OrderTicket } from '../components/OrderTicket';
-import { Wifi, WifiOff, RefreshCw, ChefHat, CheckCircle2 } from 'lucide-react';
+import { Wifi, WifiOff, ChefHat, CheckCircle2 } from 'lucide-react';
 
 interface StationBoardViewProps {
   stationId: StationId;
@@ -30,27 +30,27 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Station Control & Information Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${stationConfig.badgeColor}`}>
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center font-bold">
             <ChefHat className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-white">{stationConfig.name}</h2>
-              <span className={`px-2.5 py-0.5 rounded text-xs font-bold uppercase border ${stationConfig.badgeColor}`}>
+              <h2 className="text-xl font-bold text-slate-900">{stationConfig.name}</h2>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
                 {stationConfig.allowedStatuses.join(' / ')}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">{stationConfig.description}</p>
+            <p className="text-xs text-slate-500 mt-0.5 font-medium">{stationConfig.description}</p>
           </div>
         </div>
 
         {/* Station Network Control Switch */}
-        <div className="flex items-center gap-4 bg-slate-950 p-3 rounded-xl border border-slate-800 font-mono text-xs">
+        <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-200/80 font-mono text-xs">
           <div>
-            <span className="text-slate-500">Station Status:</span>
-            <span className={`font-bold ml-1.5 ${isStationOnline ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <span className="text-slate-500 font-sans">Station Status:</span>
+            <span className={`font-bold ml-1.5 ${isStationOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
               {isStationOnline ? 'ONLINE' : 'OFFLINE'}
             </span>
           </div>
@@ -59,8 +59,8 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
             onClick={() => onToggleStationNetwork(stationId)}
             className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all ${
               isStationOnline
-                ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/30'
-                : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30 animate-pulse'
+                ? 'bg-white hover:bg-rose-50 text-rose-600 border-rose-200'
+                : 'bg-white hover:bg-emerald-50 text-emerald-600 border-emerald-200 animate-pulse'
             }`}
           >
             {isStationOnline ? (
@@ -80,10 +80,12 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
 
       {/* Ticket Grid Display */}
       {stationOrders.length === 0 ? (
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
-          <CheckCircle2 className="w-12 h-12 text-emerald-500/50 mx-auto" />
-          <h3 className="text-lg font-bold text-slate-300">Station Queue Clear</h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-16 text-center space-y-3 shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center">
+            <CheckCircle2 className="w-7 h-7" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-800">Station Queue Clear</h3>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
             No active tickets pending at {stationConfig.name}. Incoming order transitions will stream here automatically.
           </p>
         </div>

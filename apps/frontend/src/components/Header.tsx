@@ -1,165 +1,96 @@
-import React, { useState } from 'react';
-import { Wifi, WifiOff, RefreshCw, Activity, Layers, PlusCircle, ShieldCheck, Volume2, VolumeX } from 'lucide-react';
-import { StationRoute } from '@ticketflow/types';
+import React, { useState, useEffect } from 'react';
+import { RefreshCw, Bell, Volume2, VolumeX, Activity, ChevronDown } from 'lucide-react';
 import { kitchenAudio } from '../utils/audio';
 
 interface HeaderProps {
-  connectionStatus: 'CONNECTING' | 'ONLINE' | 'SYNCING' | 'DISCONNECTED';
-  lastProcessedSequence: number;
-  activeOrdersCount: number;
-  reconnectedCount: number;
-  activeTab: StationRoute;
-  onOpenCreateModal: () => void;
-  onToggleGlobalNetwork: (online: boolean) => void;
+  title: string;
+  subtitle: string;
+  isOnline: boolean;
+  onRefresh: () => void;
   onOpenAuditLog: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  connectionStatus,
-  lastProcessedSequence,
-  activeOrdersCount,
-  reconnectedCount,
-  onOpenCreateModal,
-  onToggleGlobalNetwork,
+  title,
+  subtitle,
+  isOnline,
+  onRefresh,
   onOpenAuditLog,
 }) => {
   const [isMuted, setIsMuted] = useState<boolean>(kitchenAudio.getMuted());
-  const isOnline = connectionStatus === 'ONLINE';
-  const isSyncing = connectionStatus === 'SYNCING';
+  const [currentTime, setCurrentTime] = useState<string>('');
+
+  useEffect(() => {
+    const updateClock = () => {
+      setCurrentTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    };
+    updateClock();
+    const interval = setInterval(updateClock, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-    <header className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 py-3">
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-        {/* Brand & System Status */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
-            <Activity className="w-6 h-6 text-slate-950 font-bold" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                Ticket<span className="text-amber-400">Flow</span>
-              </h1>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                KDS v1.0
-              </span>
-            </div>
-            <p className="text-xs text-slate-400">Real-Time Event-Sourced Kitchen Display System</p>
-          </div>
+    <header className="bg-white border-b border-slate-200/80 px-8 py-5 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+      {/* Page Title & Subtitle */}
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{title}</h1>
+        <p className="text-xs text-slate-500 mt-0.5 font-medium">{subtitle}</p>
+      </div>
+
+      {/* Top Right Controls & Profile */}
+      <div className="flex items-center gap-3">
+        {/* System Online Status Badge */}
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-xs font-semibold">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+          <span>System Online</span>
         </div>
 
-        {/* Real-time System Metrics */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs font-mono">
-          {/* Connection Status Badge */}
-          <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-semibold ${
-              isOnline
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                : isSyncing
-                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse'
-                : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-            }`}
-          >
-            {isOnline ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <Wifi className="w-3.5 h-3.5" />
-                <span>ONLINE</span>
-              </>
-            ) : isSyncing ? (
-              <>
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>SYNCING...</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-3.5 h-3.5" />
-                <span>DISCONNECTED</span>
-              </>
-            )}
+        {/* Audit Log Trigger */}
+        <button
+          onClick={onOpenAuditLog}
+          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors"
+          title="Sequence Audit Log"
+        >
+          <Activity className="w-4 h-4 text-purple-600" />
+        </button>
+
+        {/* Audio Mute/Unmute */}
+        <button
+          onClick={() => {
+            const muted = kitchenAudio.toggleMute();
+            setIsMuted(muted);
+          }}
+          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors"
+          title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
+        >
+          {isMuted ? <VolumeX className="w-4 h-4 text-rose-500" /> : <Volume2 className="w-4 h-4 text-blue-600" />}
+        </button>
+
+        {/* Refresh Button */}
+        <button
+          onClick={onRefresh}
+          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors"
+          title="Refresh Events"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </button>
+
+        {/* Notifications Button */}
+        <button
+          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors relative"
+          title="Notifications"
+        >
+          <Bell className="w-4 h-4" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-600" />
+        </button>
+
+        {/* Admin User Profile Dropdown Badge */}
+        <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+          <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm">
+            AM
           </div>
-
-          {/* Monotonic Sequence Badge */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 font-medium">
-            <Layers className="w-3.5 h-3.5 text-sky-400" />
-            <span className="text-slate-400">Seq:</span>
-            <span className="text-sky-400 font-bold">#{lastProcessedSequence}</span>
-          </div>
-
-          {/* Active Ticket Counter */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 font-medium">
-            <span className="text-slate-400">Active:</span>
-            <span className="text-amber-400 font-bold">{activeOrdersCount}</span>
-          </div>
-
-          {/* Reconnect Sync Count */}
-          {reconnectedCount > 0 && (
-            <div className="hidden md:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Replays: {reconnectedCount}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex items-center gap-2">
-          {/* Event Audit Log Drawer Trigger */}
-          <button
-            onClick={onOpenAuditLog}
-            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-            title="View Real-Time Sequence Audit Log"
-          >
-            <Activity className="w-3.5 h-3.5 text-amber-400" />
-            <span>Audit Log</span>
-          </button>
-
-          {/* Audio Mute/Unmute Toggle */}
-          <button
-            onClick={() => {
-              const muted = kitchenAudio.toggleMute();
-              setIsMuted(muted);
-            }}
-            className={`p-1.5 rounded-lg border text-xs font-semibold flex items-center transition-colors ${
-              isMuted
-                ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
-                : 'bg-slate-800 text-amber-400 border-slate-700 hover:bg-slate-700'
-            }`}
-            title={isMuted ? 'Audio Alerts Muted (Click to Unmute)' : 'Audio Alerts Enabled (Click to Mute)'}
-          >
-            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-          </button>
-
-          {/* Global Network Simulation Switch */}
-          <button
-            onClick={() => onToggleGlobalNetwork(!isOnline)}
-            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              isOnline
-                ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/30'
-                : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-            }`}
-            title="Simulate Global WebSocket Network Disconnect/Reconnect"
-          >
-            {isOnline ? (
-              <>
-                <WifiOff className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Simulate Drop</span>
-              </>
-            ) : (
-              <>
-                <Wifi className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Simulate Reconnect</span>
-              </>
-            )}
-          </button>
-
-          {/* Create New Order Button */}
-          <button
-            onClick={onOpenCreateModal}
-            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-xs shadow-md shadow-orange-500/20 flex items-center gap-1.5 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>New Ticket</span>
-          </button>
+          <span className="text-xs font-semibold text-slate-800">Admin Manager</span>
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
         </div>
       </div>
     </header>
