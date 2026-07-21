@@ -1,50 +1,58 @@
 import http from 'http';
+import { generateUsers } from 'indseed';
 
 const BACKEND_HOST = 'localhost';
 const BACKEND_PORT = 4000;
 const KITCHEN_ID = 'kitchen-main';
 
-const SAMPLE_ORDERS = [
+// Generate synthetic Indian users from indseed package
+const indseedUsers = generateUsers(20);
+
+const MEAL_COMBINATIONS = [
   {
-    customerName: 'Table 7 - Marcus V.',
-    priority: 'VIP',
-    estimatedPrepTime: 12,
-    stationId: 'intake',
-    items: [
-      { id: 'item-1', name: 'Wagyu Beef Smashburger', quantity: 2, notes: 'Double cheese, brioche bun' },
-      { id: 'item-2', name: 'Truffle Parmesan Fries', quantity: 2, notes: 'Garlic aioli on side' },
-      { id: 'item-3', name: 'Craft Hazy IPA Pint', quantity: 2 },
-    ],
-  },
-  {
-    customerName: 'Order #302 - Elena R.',
-    priority: 'HIGH',
+    comboName: 'Veggie Delight Combo Meal',
+    priority: 'VIP' as const,
     estimatedPrepTime: 10,
-    stationId: 'prep',
+    stationId: 'intake' as const,
     items: [
-      { id: 'item-4', name: 'Wood-Fired Diavola Pizza', quantity: 1, notes: 'Spicy salami, hot honey' },
-      { id: 'item-5', name: 'Burrata Caprese Salad', quantity: 1, notes: 'Balsamic glaze' },
+      { id: 'item-1', name: 'Paneer Tikka Butter Masala Pizza', quantity: 1, notes: 'Extra cheese burst crust' },
+      { id: 'item-2', name: 'Spicy Paneer Crispy Burger', quantity: 1, notes: 'Extra mint mayo' },
+      { id: 'item-3', name: 'Crispy Salted French Fries', quantity: 1 },
+      { id: 'item-4', name: 'Chilled Mango Lassi / Cola', quantity: 2 },
     ],
   },
   {
-    customerName: 'Takeout #409 - Tech Team',
-    priority: 'NORMAL',
-    estimatedPrepTime: 15,
-    stationId: 'grill',
+    comboName: 'Chicken Feast Combo Meal',
+    priority: 'HIGH' as const,
+    estimatedPrepTime: 12,
+    stationId: 'prep' as const,
     items: [
-      { id: 'item-6', name: 'Prime Ribeye Steak (14oz)', quantity: 2, notes: 'Medium rare, chimichurri' },
-      { id: 'item-7', name: 'Charred Asparagus Spear', quantity: 2 },
-      { id: 'item-8', name: 'Sparkling Mineral Water', quantity: 2 },
+      { id: 'item-5', name: 'Chicken Tikka Supreme Pizza', quantity: 1, notes: 'Double chicken tikka, thin crust' },
+      { id: 'item-6', name: 'Crispy Chicken Zinger Burger', quantity: 1, notes: 'Spicy mayo & lettuce' },
+      { id: 'item-7', name: 'Garlic Cheese Breadsticks', quantity: 1, notes: 'Cheesy dip' },
+      { id: 'item-8', name: 'Cold Coffee / Drink', quantity: 2 },
     ],
   },
   {
-    customerName: 'Table 2 - Sophia L.',
-    priority: 'VIP',
+    comboName: 'Royal Indo-Italian Pizza & Burger Combo',
+    priority: 'NORMAL' as const,
+    estimatedPrepTime: 14,
+    stationId: 'grill' as const,
+    items: [
+      { id: 'item-9', name: 'Chicken Pepperoni Feast Pizza', quantity: 1, notes: 'Extra chicken pepperoni' },
+      { id: 'item-10', name: 'Classic Veggie Herb Burger', quantity: 1, notes: 'Whole wheat bun' },
+      { id: 'item-11', name: 'Peri Peri Potato Wedges', quantity: 1 },
+    ],
+  },
+  {
+    comboName: 'Corn & Cheese Pizza Burger Special',
+    priority: 'VIP' as const,
     estimatedPrepTime: 8,
-    stationId: 'intake',
+    stationId: 'intake' as const,
     items: [
-      { id: 'item-9', name: 'Pan-Seared Atlantic Salmon', quantity: 1, notes: 'Lemon dill butter' },
-      { id: 'item-10', name: 'Quinoa Power Bowl', quantity: 1 },
+      { id: 'item-12', name: 'Golden Corn & Cheese Margherita Pizza', quantity: 1, notes: 'Fresh mozzarella & basil' },
+      { id: 'item-13', name: 'Grilled Chicken Cheese Burger', quantity: 1, notes: 'Smoky BBQ sauce' },
+      { id: 'item-14', name: 'Masala French Fries', quantity: 1 },
     ],
   },
 ];
@@ -89,25 +97,41 @@ function sleep(ms: number) {
 
 async function runSeeder() {
   console.log('--------------------------------------------------');
-  console.log('🚀 TicketFlow Real-Time Sample Data Stream Generator');
+  console.log('TicketFlow Real-Time Seeder (Powered by indseed npm)');
   console.log('--------------------------------------------------');
+  console.log(`Loaded ${indseedUsers.length} synthetic Indian users from indseed.`);
   console.log(`Connecting to backend API at http://${BACKEND_HOST}:${BACKEND_PORT}...\n`);
 
-  for (let i = 0; i < SAMPLE_ORDERS.length; i++) {
-    const orderData = SAMPLE_ORDERS[i];
-    try {
-      const result = await postOrder(orderData);
-      console.log(
-        `✅ Created Order #${result.orderId ? result.orderId.slice(-6).toUpperCase() : i + 1} | Customer: "${orderData.customerName}" | Priority: ${orderData.priority} | Seq #${result.event?.sequenceNumber}`
-      );
-    } catch (err: any) {
-      console.error(`❌ Failed to send order: ${err.message}`);
+  let count = 0;
+  for (let cycle = 0; cycle < 2; cycle++) {
+    for (let i = 0; i < MEAL_COMBINATIONS.length; i++) {
+      count++;
+      const combo = MEAL_COMBINATIONS[i];
+      const indUser = indseedUsers[(count - 1) % indseedUsers.length];
+      const customerName = `${indUser.fullName} - ${combo.comboName}`;
+
+      const orderPayload = {
+        customerName,
+        priority: combo.priority,
+        estimatedPrepTime: combo.estimatedPrepTime,
+        stationId: combo.stationId,
+        items: combo.items,
+      };
+
+      try {
+        const result = await postOrder(orderPayload);
+        console.log(
+          `[Order Created] #${result.orderId ? result.orderId.slice(-6).toUpperCase() : count} | Customer: "${customerName}" | Priority: ${combo.priority} | Seq #${result.event?.sequenceNumber}`
+        );
+      } catch (err: any) {
+        console.error(`[Error] Failed to send order: ${err.message}`);
+      }
+
+      await sleep(1000);
     }
-    await sleep(800); // 800ms stagger between order ticket broadcasts
   }
 
-  console.log('\n🎉 All sample orders successfully broadcasted over Socket.IO!');
-  console.log('Check your browser at http://localhost:3000 to see live order tickets!');
+  console.log('\nAll sample orders using indseed synthetic data successfully sent to backend.');
   process.exit(0);
 }
 

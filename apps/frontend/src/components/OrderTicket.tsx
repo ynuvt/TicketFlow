@@ -36,15 +36,30 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
 
   const currentStationConfig = STATIONS[order.currentStationId] || STATIONS.intake;
 
+  // Determine next status and station in 5-step pipeline: Intake -> Prep -> Grill -> Assembly -> Expedite -> Served
   const getNextAction = () => {
-    switch (order.status) {
-      case 'PLACED':
-        return { targetStatus: 'PREPARING' as OrderStatus, targetStation: 'prep' as StationId, label: 'Start Prep' };
-      case 'PREPARING':
-        return { targetStatus: 'READY' as OrderStatus, targetStation: 'assembly' as StationId, label: 'Finish Prep' };
-      case 'READY':
-        return { targetStatus: 'SERVED' as OrderStatus, targetStation: 'expedite' as StationId, label: 'Serve Order' };
+    switch (order.currentStationId) {
+      case 'intake':
+        return { targetStatus: 'PREPARING' as OrderStatus, targetStation: 'prep' as StationId, label: 'Send to Prep' };
+      case 'prep':
+        return { targetStatus: 'PREPARING' as OrderStatus, targetStation: 'grill' as StationId, label: 'Move to Grill' };
+      case 'grill':
+        return { targetStatus: 'READY' as OrderStatus, targetStation: 'assembly' as StationId, label: 'Plate & Assemble' };
+      case 'assembly':
+        return { targetStatus: 'READY' as OrderStatus, targetStation: 'expedite' as StationId, label: 'Send to Expedite' };
+      case 'expedite':
+        if (order.status === 'SERVED') return null;
+        return { targetStatus: 'SERVED' as OrderStatus, targetStation: 'expedite' as StationId, label: 'Serve & Complete' };
       default:
+        if (order.status === 'PLACED') {
+          return { targetStatus: 'PREPARING' as OrderStatus, targetStation: 'prep' as StationId, label: 'Send to Prep' };
+        }
+        if (order.status === 'PREPARING') {
+          return { targetStatus: 'READY' as OrderStatus, targetStation: 'assembly' as StationId, label: 'Plate & Assemble' };
+        }
+        if (order.status === 'READY') {
+          return { targetStatus: 'READY' as OrderStatus, targetStation: 'expedite' as StationId, label: 'Send to Expedite' };
+        }
         return null;
     }
   };

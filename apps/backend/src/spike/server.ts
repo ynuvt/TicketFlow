@@ -10,6 +10,7 @@ import {
   StationId,
 } from '@ticketflow/types';
 import { validateStateTransition } from '../domain/stateMachine';
+import { generateUsers } from 'indseed';
 
 const app = express();
 const httpServer = createServer(app);
@@ -38,39 +39,43 @@ function seedInitialOrders(kitchenId: string) {
   const existingEvents = globalEventStore.getAllEvents(kitchenId);
   if (existingEvents.length > 0) return;
 
+  const users = generateUsers(5);
+
   const sampleOrders: CreateOrderPayload[] = [
     {
       kitchenId,
-      customerName: 'Table 4 - Alex M.',
+      customerName: `${users[0]?.fullName || 'Rahul Sharma'} - Veggie Delight Combo`,
       priority: 'VIP',
-      estimatedPrepTime: 12,
+      estimatedPrepTime: 10,
       stationId: 'intake',
       items: [
-        { id: 'i1', name: 'Truffle Burger Special', quantity: 2, notes: 'Medium rare, extra cheese' },
-        { id: 'i2', name: 'Hand-Cut Seasoned Fries', quantity: 2 },
-        { id: 'i3', name: 'Craft IPA Pint', quantity: 2 },
+        { id: 'i1', name: 'Paneer Tikka Butter Masala Pizza', quantity: 1, notes: 'Extra cheese burst crust' },
+        { id: 'i2', name: 'Spicy Paneer Crispy Burger', quantity: 1, notes: 'Extra mint mayo' },
+        { id: 'i3', name: 'Crispy Salted French Fries', quantity: 1 },
       ],
     },
     {
       kitchenId,
-      customerName: 'Order #104 - Sarah K.',
+      customerName: `${users[1]?.fullName || 'Ananya Patel'} - Chicken Feast Combo`,
       priority: 'HIGH',
-      estimatedPrepTime: 8,
+      estimatedPrepTime: 12,
       stationId: 'prep',
       items: [
-        { id: 'i4', name: 'Wood-Fired Margherita Pizza', quantity: 1, notes: 'Crispy crust, basil' },
-        { id: 'i5', name: 'Caesar Salad', quantity: 1, notes: 'Dressing on the side' },
+        { id: 'i4', name: 'Chicken Tikka Supreme Pizza', quantity: 1, notes: 'Double chicken tikka, thin crust' },
+        { id: 'i5', name: 'Crispy Chicken Zinger Burger', quantity: 1, notes: 'Spicy mayo & lettuce' },
+        { id: 'i6', name: 'Garlic Cheese Breadsticks', quantity: 1 },
       ],
     },
     {
       kitchenId,
-      customerName: 'Takeout #88 - David R.',
+      customerName: `${users[2]?.fullName || 'Rohan Verma'} - Indo-Italian Combo`,
       priority: 'NORMAL',
-      estimatedPrepTime: 15,
+      estimatedPrepTime: 14,
       stationId: 'grill',
       items: [
-        { id: 'i6', name: 'Ribeye Steak (12oz)', quantity: 1, notes: 'Medium rare, garlic butter' },
-        { id: 'i7', name: 'Grilled Asparagus', quantity: 1 },
+        { id: 'i7', name: 'Chicken Pepperoni Feast Pizza', quantity: 1, notes: 'Extra chicken pepperoni' },
+        { id: 'i8', name: 'Classic Veggie Herb Burger', quantity: 1, notes: 'Whole wheat bun' },
+        { id: 'i9', name: 'Peri Peri Potato Wedges', quantity: 1 },
       ],
     },
   ];

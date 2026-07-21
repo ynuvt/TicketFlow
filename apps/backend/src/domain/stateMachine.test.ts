@@ -8,6 +8,11 @@ describe('Order State Machine', () => {
     expect(() => validateStateTransition('READY', 'SERVED')).not.toThrow();
   });
 
+  it('allows same-status transitions for station movements', () => {
+    expect(() => validateStateTransition('PREPARING', 'PREPARING')).not.toThrow();
+    expect(() => validateStateTransition('READY', 'READY')).not.toThrow();
+  });
+
   it('rejects invalid state jumps', () => {
     expect(() => validateStateTransition('PLACED', 'READY')).toThrow(InvalidStateTransitionError);
     expect(() => validateStateTransition('PLACED', 'SERVED')).toThrow(InvalidStateTransitionError);
