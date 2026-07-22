@@ -1,24 +1,30 @@
-import React, { useState } from 'react';
-import { StationId, StationRoute } from '@ticketflow/types';
+import React, { useState, useEffect } from 'react';
+import { StationId } from '@ticketflow/types';
 import { useRouter } from './hooks/useRouter';
 import { useSocketKDS } from './hooks/useSocketKDS';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { OrderCreatorModal } from './components/OrderCreatorModal';
 import { EventAuditLog } from './components/EventAuditLog';
 
+import { LoginView } from './views/LoginView';
 import { DashboardView } from './views/DashboardView';
 import { OverviewBoardView } from './views/OverviewBoardView';
 import { StationBoardView } from './views/StationBoardView';
 import { OrdersView } from './views/OrdersView';
+import { StaffManagerView } from './views/StaffManagerView';
 import { ReportsView } from './views/ReportsView';
 import { AlertsView } from './views/AlertsView';
 import { SettingsView } from './views/SettingsView';
+import { Lock, ShieldAlert } from 'lucide-react';
 
-export default function App() {
+function AppContent() {
   const { currentPath, navigate } = useRouter();
+  const { user, hasStationAccess } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [isAuditLogOpen, setIsAuditLogOpen] = useState<boolean>(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Derive station route from path for socket engine
   const getStationIdFromPath = (path: string): StationId | 'overview' | 'manager' => {
@@ -55,9 +61,22 @@ export default function App() {
     requestReplay,
   } = useSocketKDS(activeStation);
 
+  // Sync body background dynamically based on authentication state to prevent white screen flash
+  useEffect(() => {
+    if (!user) {
+      document.body.style.backgroundColor = '#0f172a'; // slate-900 (Login View dark background)
+    } else {
+      document.body.style.backgroundColor = '#f8fafc'; // slate-50 (Dashboard View light background)
+    }
+  }, [user]);
+
+  // If user is not authenticated, show Login Screen
+  if (!user) {
+    return <LoginView />;
+  }
+
   const isOnline = connectionStatus === 'ONLINE';
 
-  // Get Page Title & Subtitle based on route
   const getHeaderMeta = () => {
     switch (currentPath) {
       case '/':
@@ -101,6 +120,11 @@ export default function App() {
           title: 'Master Orders List',
           subtitle: 'Complete kitchen order history and active state tracking',
         };
+      case '/staff':
+        return {
+          title: 'Staff Management & Station RBAC',
+          subtitle: 'Manage kitchen staff credentials and station permissions',
+        };
       case '/reports':
         return {
           title: 'Kitchen Reports & Analytics',
@@ -127,6 +151,30 @@ export default function App() {
   const headerMeta = getHeaderMeta();
 
   const renderCurrentView = () => {
+    // Station RBAC Protection Check
+    const stationRoutes: Record<string, string> = {
+      '/intake': 'intake',
+      '/prep': 'prep',
+      '/grill': 'grill',
+      '/assembly': 'assembly',
+      '/expedite': 'expedite',
+    };
+
+    if (stationRoutes[currentPath] && !hasStationAccess(stationRoutes[currentPath])) {
+      return (
+        <div className="bg-rose-50 border border-dashed border-rose-300 rounded-2xl p-16 text-center space-y-3 shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
+            <ShieldAlert className="w-7 h-7" />
+          </div>
+          <h3 className="text-lg font-bold text-rose-900">Station Access Restricted</h3>
+          <p className="text-xs text-rose-600 max-w-md mx-auto">
+            Your account (<strong>@{user.username}</strong>) does not have permission to access the{' '}
+            <strong>{headerMeta.title}</strong>. Please contact your Admin Manager to assign this station privilege.
+          </p>
+        </div>
+      );
+    }
+
     switch (currentPath) {
       case '/':
       case '/dashboard':
@@ -174,6 +222,9 @@ export default function App() {
       case '/orders':
         return <OrdersView orders={orders} onTransitionOrder={transitionOrder} />;
 
+      case '/staff':
+        return <StaffManagerView />;
+
       case '/reports':
         return <ReportsView orders={orders} />;
 
@@ -208,6 +259,8 @@ export default function App() {
         currentPath={currentPath}
         onNavigate={navigate}
         isSystemOnline={isOnline}
+        isOpenMobile={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main App Content Area */}
@@ -219,10 +272,11 @@ export default function App() {
           isOnline={isOnline}
           onRefresh={requestReplay}
           onOpenAuditLog={() => setIsAuditLogOpen(true)}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         />
 
         {/* Dynamic Route View */}
-        <main className="flex-1 p-8 overflow-y-auto">{renderCurrentView()}</main>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">{renderCurrentView()}</main>
       </div>
 
       {/* Create Order Modal */}
@@ -240,5 +294,13 @@ export default function App() {
         lastProcessedSequence={lastProcessedSequence}
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

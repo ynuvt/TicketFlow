@@ -82,10 +82,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Last Updated Timestamp */}
-      <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-        <Clock className="w-3.5 h-3.5" />
-        <span>Last updated: {lastUpdatedTime || '10:24:30 AM'}</span>
+      {/* Brand Hero Welcome Banner */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-200/80 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-4 text-center sm:text-left">
+          <img
+            src="/logo.png"
+            alt="TicketFlow Master Chef Logo"
+            className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-2xl border-2 border-amber-300 bg-white p-1 shadow-md shrink-0"
+          />
+          <div>
+            <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px] uppercase tracking-wider">
+              Master Kitchen Display System
+            </span>
+            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">Welcome to TicketFlow KDS</h2>
+            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+              Real-time event-sourced order routing, station connectivity matrix & queue telemetry
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 font-mono bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
+            <Clock className="w-3.5 h-3.5 text-amber-600" />
+            <span>Updated: {lastUpdatedTime || '10:24:30 AM'}</span>
+          </div>
+        </div>
       </div>
 
       {/* Top 4 Stat Cards */}

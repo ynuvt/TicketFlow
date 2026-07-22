@@ -4,8 +4,8 @@ import { OrderStatus } from '../domain/stateMachine';
 export interface CreateOrderInput {
   kitchenId: string;
   customerName: string;
-  items: string[];
-  priority?: number;
+  items: Array<{ id?: string; name: string; quantity: number; notes?: string }>;
+  priority?: 'NORMAL' | 'HIGH' | 'VIP' | number;
   estimatedPrepTime: number;
   initialStationId?: string;
 }
@@ -18,42 +18,83 @@ export interface TransitionOrderInput {
 }
 
 export class OrderRepository {
+  private async getNextSequenceNumber(tx: any, kitchenId: string): Promise<number> {
+    const maxResult = await tx.orderEvent.aggregate({
+      where: { kitchenId },
+      _max: { sequenceNumber: true },
+    });
+    const maxSeq = maxResult._max.sequenceNumber;
+    return maxSeq !== null && maxSeq !== undefined ? Number(maxSeq) + 1 : 1;
+  }
+
   public async createOrder(input: CreateOrderInput) {
     return prisma.$transaction(async (tx: any) => {
-      const lastEvent = await tx.orderEvent.findFirst({
-        where: { kitchenId: input.kitchenId },
-        orderBy: { sequenceNumber: 'desc' },
+      await tx.kitchen.upsert({
+        where: { id: input.kitchenId },
+        update: {},
+        create: { id: input.kitchenId, name: 'Main Kitchen' },
       });
 
-      const nextSequence = lastEvent ? Number(lastEvent.sequenceNumber) + 1 : 1;
+      let nextSequence = await this.getNextSequenceNumber(tx, input.kitchenId);
+      const priorityEnum =
+        typeof input.priority === 'string'
+          ? (input.priority as 'NORMAL' | 'HIGH' | 'VIP')
+          : input.priority === 2
+          ? 'VIP'
+          : input.priority === 1
+          ? 'HIGH'
+          : 'NORMAL';
 
       const order = await tx.order.create({
         data: {
           kitchenId: input.kitchenId,
           customerName: input.customerName,
-          items: JSON.stringify(input.items),
-          priority: input.priority || 0,
+          priority: priorityEnum,
           estimatedPrepTime: input.estimatedPrepTime,
           status: 'PLACED',
-          currentStationId: input.initialStationId,
+          currentStationId: input.initialStationId || 'intake',
+          orderItems: {
+            create: (input.items || []).map((item) => ({
+              name: item.name,
+              quantity: item.quantity || 1,
+              notes: item.notes || null,
+            })),
+          },
+        },
+        include: {
+          orderItems: true,
         },
       });
 
-      const event = await tx.orderEvent.create({
-        data: {
-          kitchenId: input.kitchenId,
-          orderId: order.id,
-          sequenceNumber: BigInt(nextSequence),
-          type: 'ORDER_CREATED',
-          payload: {
-            customerName: input.customerName,
-            items: input.items,
-            priority: order.priority,
-            status: order.status,
-            stationId: order.currentStationId,
-          },
-        },
-      });
+      let event: any = null;
+      let attempts = 0;
+
+      while (!event && attempts < 5) {
+        try {
+          event = await tx.orderEvent.create({
+            data: {
+              kitchenId: input.kitchenId,
+              orderId: order.id,
+              sequenceNumber: BigInt(nextSequence),
+              type: 'ORDER_CREATED',
+              payload: {
+                customerName: input.customerName,
+                items: input.items,
+                priority: order.priority,
+                status: order.status,
+                stationId: order.currentStationId,
+              },
+            },
+          });
+        } catch (err: any) {
+          if (err.code === 'P2002') {
+            nextSequence++;
+            attempts++;
+          } else {
+            throw err;
+          }
+        }
+      }
 
       return { order, event: { ...event, sequenceNumber: Number(event.sequenceNumber) } };
     });
@@ -61,42 +102,52 @@ export class OrderRepository {
 
   public async transitionOrder(input: TransitionOrderInput) {
     return prisma.$transaction(async (tx: any) => {
-      const existingOrder = await tx.order.findUnique({
+      let nextSequence = await this.getNextSequenceNumber(tx, input.kitchenId);
+
+      const updatedOrder = await tx.order.upsert({
         where: { id: input.orderId },
-      });
-
-      if (!existingOrder) {
-        throw new Error(`Order ${input.orderId} not found`);
-      }
-
-      const lastEvent = await tx.orderEvent.findFirst({
-        where: { kitchenId: input.kitchenId },
-        orderBy: { sequenceNumber: 'desc' },
-      });
-
-      const nextSequence = lastEvent ? Number(lastEvent.sequenceNumber) + 1 : 1;
-
-      const updatedOrder = await tx.order.update({
-        where: { id: input.orderId },
-        data: {
+        update: {
           status: input.targetStatus,
-          currentStationId: input.nextStationId ?? existingOrder.currentStationId,
+          currentStationId: input.nextStationId,
+        },
+        create: {
+          id: input.orderId,
+          kitchenId: input.kitchenId,
+          customerName: 'Kitchen Order',
+          status: input.targetStatus,
+          currentStationId: input.nextStationId || 'prep',
+        },
+        include: {
+          orderItems: true,
         },
       });
 
-      const event = await tx.orderEvent.create({
-        data: {
-          kitchenId: input.kitchenId,
-          orderId: input.orderId,
-          sequenceNumber: BigInt(nextSequence),
-          type: 'ORDER_TRANSITIONED',
-          payload: {
-            previousStatus: existingOrder.status,
-            newStatus: input.targetStatus,
-            stationId: updatedOrder.currentStationId,
-          },
-        },
-      });
+      let event: any = null;
+      let attempts = 0;
+
+      while (!event && attempts < 5) {
+        try {
+          event = await tx.orderEvent.create({
+            data: {
+              kitchenId: input.kitchenId,
+              orderId: input.orderId,
+              sequenceNumber: BigInt(nextSequence),
+              type: 'ORDER_TRANSITIONED',
+              payload: {
+                newStatus: input.targetStatus,
+                stationId: updatedOrder.currentStationId,
+              },
+            },
+          });
+        } catch (err: any) {
+          if (err.code === 'P2002') {
+            nextSequence++;
+            attempts++;
+          } else {
+            throw err;
+          }
+        }
+      }
 
       return {
         order: updatedOrder,
@@ -126,10 +177,10 @@ export class OrderRepository {
         kitchenId,
         currentStationId: stationId,
       },
-      orderBy: [
-        { priority: 'desc' },
-        { createdAt: 'asc' },
-      ],
+      include: {
+        orderItems: true,
+      },
+      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
     });
   }
 }

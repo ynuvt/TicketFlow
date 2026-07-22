@@ -25,7 +25,7 @@ const MEAL_COMBINATIONS = [
     comboName: 'Chicken Feast Combo Meal',
     priority: 'HIGH' as const,
     estimatedPrepTime: 12,
-    stationId: 'prep' as const,
+    stationId: 'intake' as const,
     items: [
       { id: 'item-5', name: 'Chicken Tikka Supreme Pizza', quantity: 1, notes: 'Double chicken tikka, thin crust' },
       { id: 'item-6', name: 'Crispy Chicken Zinger Burger', quantity: 1, notes: 'Spicy mayo & lettuce' },
@@ -37,7 +37,7 @@ const MEAL_COMBINATIONS = [
     comboName: 'Royal Indo-Italian Pizza & Burger Combo',
     priority: 'NORMAL' as const,
     estimatedPrepTime: 14,
-    stationId: 'grill' as const,
+    stationId: 'intake' as const,
     items: [
       { id: 'item-9', name: 'Chicken Pepperoni Feast Pizza', quantity: 1, notes: 'Extra chicken pepperoni' },
       { id: 'item-10', name: 'Classic Veggie Herb Burger', quantity: 1, notes: 'Whole wheat bun' },

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Bell, Volume2, VolumeX, Activity, ChevronDown } from 'lucide-react';
+import { RefreshCw, Bell, Volume2, VolumeX, Activity, Menu, LogOut, Shield } from 'lucide-react';
 import { kitchenAudio } from '../utils/audio';
+import { useAuth } from '../context/AuthContext';
 
 interface HeaderProps {
   title: string;
@@ -8,6 +9,7 @@ interface HeaderProps {
   isOnline: boolean;
   onRefresh: () => void;
   onOpenAuditLog: () => void;
+  onOpenMobileMenu?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,7 +18,9 @@ export const Header: React.FC<HeaderProps> = ({
   isOnline,
   onRefresh,
   onOpenAuditLog,
+  onOpenMobileMenu,
 }) => {
+  const { user, logout } = useAuth();
   const [isMuted, setIsMuted] = useState<boolean>(kitchenAudio.getMuted());
   const [currentTime, setCurrentTime] = useState<string>('');
 
@@ -30,19 +34,30 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   return (
-    <header className="bg-white border-b border-slate-200/80 px-8 py-5 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-      {/* Page Title & Subtitle */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{title}</h1>
-        <p className="text-xs text-slate-500 mt-0.5 font-medium">{subtitle}</p>
+    <header className="bg-white border-b border-slate-200/80 px-4 sm:px-8 py-4 sm:py-5 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+      {/* Mobile Hamburger & Page Title */}
+      <div className="flex items-center gap-3">
+        {onOpenMobileMenu && (
+          <button
+            onClick={onOpenMobileMenu}
+            className="md:hidden p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50"
+            title="Open Menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
+        <div>
+          <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">{title}</h1>
+          <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 font-medium hidden sm:block">{subtitle}</p>
+        </div>
       </div>
 
       {/* Top Right Controls & Profile */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* System Online Status Badge */}
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-xs font-semibold">
+        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-xs font-semibold">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-          <span>System Online</span>
+          <span>Online</span>
         </div>
 
         {/* Audit Log Trigger */}
@@ -75,23 +90,25 @@ export const Header: React.FC<HeaderProps> = ({
           <RefreshCw className="w-4 h-4" />
         </button>
 
-        {/* Notifications Button */}
-        <button
-          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors relative"
-          title="Notifications"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-600" />
-        </button>
-
-        {/* Admin User Profile Dropdown Badge */}
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-          <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm">
-            AM
+        {/* User Profile & Logout */}
+        {user && (
+          <div className="flex items-center gap-2.5 pl-2.5 border-l border-slate-200">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 font-extrabold text-xs flex items-center justify-center shadow-sm">
+              {user.fullName.substring(0, 2).toUpperCase()}
+            </div>
+            <div className="hidden sm:block text-left">
+              <p className="text-xs font-bold text-slate-900 leading-tight">{user.fullName}</p>
+              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">{user.role}</span>
+            </div>
+            <button
+              onClick={logout}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
-          <span className="text-xs font-semibold text-slate-800">Admin Manager</span>
-          <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-        </div>
+        )}
       </div>
     </header>
   );

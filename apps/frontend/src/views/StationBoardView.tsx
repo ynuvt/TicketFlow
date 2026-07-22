@@ -79,7 +79,17 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
       </div>
 
       {/* Ticket Grid Display */}
-      {stationOrders.length === 0 ? (
+      {!isStationOnline ? (
+        <div className="bg-rose-50/60 border border-dashed border-rose-300 rounded-2xl p-16 text-center space-y-3 shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
+            <WifiOff className="w-7 h-7 animate-pulse" />
+          </div>
+          <h3 className="text-lg font-bold text-rose-900">Station Network Offline</h3>
+          <p className="text-xs text-rose-600 max-w-md mx-auto">
+            This station's socket network connection is currently disconnected. Orders are not fetched while offline. Click <strong>Simulate Reconnect</strong> above to re-establish connection and sync tickets.
+          </p>
+        </div>
+      ) : stationOrders.length === 0 ? (
         <div className="bg-white border border-slate-200/80 rounded-2xl p-16 text-center space-y-3 shadow-sm">
           <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center">
             <CheckCircle2 className="w-7 h-7" />
