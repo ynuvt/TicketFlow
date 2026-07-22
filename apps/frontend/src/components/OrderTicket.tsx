@@ -40,138 +40,149 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
 
   // Determine next status and station in 5-step pipeline: Intake -> Prep -> Grill -> Assembly -> Expedite -> Served
   const getNextAction = () => {
-    switch (activeStationId) {
-      case 'intake':
-        if (order.status === 'PLACED') {
-          return { targetStatus: 'PREPARING' as OrderStatus, targetStation: 'prep' as StationId, label: `Send KOT ${kotShortId} → Prep` };
-        }
-        return null;
+    if (order.status === 'SERVED') return null;
 
-      case 'prep':
-        if (order.status === 'PREPARING') {
-          return { targetStatus: 'PREPARING' as OrderStatus, targetStation: 'grill' as StationId, label: `Move KOT ${kotShortId} → Grill` };
-        }
-        return null;
+    const station = order.currentStationId || 'intake';
 
-      case 'grill':
-        if (order.status === 'PREPARING') {
-          return { targetStatus: 'READY' as OrderStatus, targetStation: 'assembly' as StationId, label: `Plate KOT ${kotShortId} → Assembly` };
-        }
-        return null;
-
-      case 'assembly':
-        if (order.status === 'READY') {
-          return { targetStatus: 'READY' as OrderStatus, targetStation: 'expedite' as StationId, label: `Send KOT ${kotShortId} → Expedite` };
-        }
-        return null;
-
-      case 'expedite':
-        if (order.status === 'SERVED') return null;
-        return { targetStatus: 'SERVED' as OrderStatus, targetStation: 'expedite' as StationId, label: `Serve KOT ${kotShortId}` };
-      default:
-        if (order.status === 'PLACED') {
-          return { targetStatus: 'PREPARING' as OrderStatus, targetStation: 'prep' as StationId, label: `Send KOT ${kotShortId} → Prep` };
-        }
-        if (order.status === 'PREPARING') {
-          return { targetStatus: 'READY' as OrderStatus, targetStation: 'assembly' as StationId, label: `Plate KOT ${kotShortId} → Assembly` };
-        }
-        if (order.status === 'READY') {
-          return { targetStatus: 'READY' as OrderStatus, targetStation: 'expedite' as StationId, label: `Send KOT ${kotShortId} → Expedite` };
-        }
-        return null;
+    if (station === 'intake' || order.status === 'PLACED') {
+      return {
+        targetStatus: 'PREPARING' as OrderStatus,
+        targetStation: 'prep' as StationId,
+        label: `Send KOT ${kotShortId} → Prep`,
+      };
     }
+
+    if (station === 'prep') {
+      return {
+        targetStatus: 'PREPARING' as OrderStatus,
+        targetStation: 'grill' as StationId,
+        label: `Move KOT ${kotShortId} → Grill`,
+      };
+    }
+
+    if (station === 'grill') {
+      return {
+        targetStatus: 'READY' as OrderStatus,
+        targetStation: 'assembly' as StationId,
+        label: `Plate KOT ${kotShortId} → Assembly`,
+      };
+    }
+
+    if (station === 'assembly') {
+      return {
+        targetStatus: 'READY' as OrderStatus,
+        targetStation: 'expedite' as StationId,
+        label: `Send KOT ${kotShortId} → Expedite`,
+      };
+    }
+
+    if (station === 'expedite') {
+      return {
+        targetStatus: 'SERVED' as OrderStatus,
+        targetStation: 'expedite' as StationId,
+        label: `Serve KOT ${kotShortId}`,
+      };
+    }
+
+    return null;
   };
 
   const action = getNextAction();
 
   return (
-    <div className="bg-white rounded-2xl border-2 border-slate-900 shadow-md hover:shadow-xl transition-all flex flex-col justify-between overflow-hidden relative font-sans">
-      {/* Physical Ticket Header Strip */}
-      <div className="bg-slate-900 px-4 py-2.5 flex items-center justify-between text-white border-b border-slate-800">
-        <div className="flex items-center gap-2">
-          <Receipt className="w-4 h-4 text-amber-400" />
-          <span className="font-mono text-sm font-black tracking-wider text-amber-300 uppercase">
-            KOT {kotShortId}
+    <div className="bg-white rounded-xl border border-slate-300 shadow-md hover:shadow-xl transition-all flex flex-col justify-between overflow-hidden relative font-mono text-slate-900 select-none p-4 space-y-3">
+      {/* KOT Receipt Top Header */}
+      <div className="text-center space-y-0.5">
+        <p className="text-xs font-black tracking-widest text-slate-600 uppercase">KOT Reciept</p>
+        <div className="border-t border-dashed border-slate-400 my-1" />
+        <h2 className="text-sm font-black tracking-wider text-slate-900 uppercase">FAMILY RESTAURANT</h2>
+        <p className="text-[10px] text-slate-500 leading-tight">
+          Vijay Nagar, Near by C21 Mall, Indore, Madhya Pradesh, India.
+          <br />
+          Mobile No.: 9876543210
+        </p>
+        <div className="border-t border-dashed border-slate-400 my-1" />
+      </div>
+
+      {/* Bill No & Date Metadata */}
+      <div className="flex items-center justify-between text-xs font-bold border-b border-dashed border-slate-400 pb-2">
+        <div className="flex items-center gap-1">
+          <span className="text-slate-600">Bill No:</span>
+          <span className="font-black text-xs text-slate-900 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded">
+            {kotShortId}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
           {order.priority === 'VIP' && (
-            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-400 text-slate-950 uppercase flex items-center gap-1 shadow-sm">
-              <ShieldAlert className="w-3 h-3" /> VIP
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-400 text-slate-950 uppercase shadow-xs">
+              VIP
             </span>
           )}
           {order.priority === 'HIGH' && (
-            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white uppercase shadow-sm">
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white uppercase shadow-xs">
               RUSH
             </span>
           )}
-          <div className={`px-2 py-0.5 rounded text-xs font-mono font-black flex items-center gap-1 border ${getTimerBadgeStyle()}`}>
-            <Clock className="w-3.5 h-3.5" />
+          <div className={`px-2 py-0.5 rounded text-xs font-black flex items-center gap-1 border ${getTimerBadgeStyle()}`}>
+            <Clock className="w-3 h-3" />
             <span>{formattedTimer}</span>
           </div>
         </div>
       </div>
 
-      {/* Ticket Meta Header */}
-      <div className="p-3.5 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5 truncate">
-          <User className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-          <span className="truncate">{order.customerName}</span>
-        </h3>
-
+      {/* Customer Name & Staff Assignment */}
+      <div className="flex items-center justify-between text-xs font-bold text-slate-700 bg-slate-50 p-2 rounded border border-slate-200">
+        <span className="truncate">Customer: <strong className="text-slate-900">{order.customerName}</strong></span>
         {assignedStaffName ? (
-          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1 font-mono shrink-0 shadow-xs">
+          <span className="text-[10px] font-black bg-blue-100 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded font-mono shrink-0">
             👤 {assignedStaffName}
           </span>
         ) : order.assignedUserId ? (
-          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1 font-mono shrink-0 shadow-xs">
+          <span className="text-[10px] font-black bg-blue-100 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded font-mono shrink-0">
             👤 Cook Assigned
           </span>
         ) : order.currentStationId !== 'intake' && order.status !== 'SERVED' ? (
-          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-200 flex items-center gap-1 font-mono shrink-0 shadow-xs">
+          <span className="text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-200 px-1.5 py-0.5 rounded font-mono shrink-0">
             ⚠️ Unassigned
           </span>
         ) : null}
       </div>
 
-      {/* Physical Ticket Items List */}
-      <div className="p-4 flex-1 space-y-2.5 bg-white">
-        <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mb-1 border-b border-dashed border-slate-200 pb-1 font-mono">
-          <span>KITCHEN ITEMS ({order.items.reduce((acc, item) => acc + item.quantity, 0)})</span>
-          <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200">
-            {currentStationConfig.name}
-          </span>
+      {/* Items Table Header & List */}
+      <div className="space-y-2 flex-1">
+        <div className="grid grid-cols-12 text-[11px] font-black text-slate-900 border-b border-dashed border-slate-400 pb-1 uppercase">
+          <span className="col-span-2">S. NO.</span>
+          <span className="col-span-8">ITEM NAME</span>
+          <span className="col-span-2 text-right">QTY.</span>
         </div>
 
-        <div className="space-y-2">
-          {order.items.map((item) => (
-            <div key={item.id} className="flex items-start gap-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-              <span className="w-6 h-6 rounded-lg bg-slate-900 text-amber-300 font-mono font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
-                {item.quantity}x
-              </span>
-              <div className="flex-1">
-                <p className="text-xs font-black text-slate-900">{item.name}</p>
-                {item.notes && (
-                  <p className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md italic mt-1 inline-block">
-                    Note: {item.notes}
-                  </p>
-                )}
+        <div className="space-y-1.5 text-xs font-bold text-slate-800">
+          {order.items.map((item, idx) => (
+            <div key={item.id} className="space-y-0.5">
+              <div className="grid grid-cols-12 items-center">
+                <span className="col-span-2 text-slate-500 font-mono">{idx + 1}</span>
+                <span className="col-span-8 font-black text-slate-900">{item.name}</span>
+                <span className="col-span-2 text-right font-black text-blue-700">{item.quantity}</span>
               </div>
+              {item.notes && (
+                <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded italic ml-6">
+                  Note: {item.notes}
+                </p>
+              )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Physical Ticket Footer & KOT Action */}
-      <div className="p-3 bg-slate-100/90 border-t-2 border-slate-900 flex items-center justify-between gap-2">
-        <div className="text-[11px] font-mono text-slate-500">
-          Status: <span className="text-slate-900 font-black">{order.status}</span>
-        </div>
+      {/* Thank You & Action Footer */}
+      <div className="space-y-2 pt-1 border-t border-dashed border-slate-400 text-center">
+        <p className="text-xs font-black text-slate-700 tracking-wider">Thank You!!!</p>
+        <div className="border-t border-dashed border-slate-400 pt-1" />
 
         {action && (
           <button
             onClick={() => onTransitionOrder(order.id, order.status, action.targetStatus, action.targetStation)}
-            className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-black text-xs shadow-md hover:shadow-lg flex items-center justify-center gap-2 transition-all font-mono active:scale-95"
+            className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-black text-xs shadow-md hover:shadow-lg flex items-center justify-center gap-2 transition-all font-mono active:scale-95 cursor-pointer"
           >
             <span>{action.label}</span>
             <ArrowRight className="w-4 h-4 text-amber-400" />
@@ -179,7 +190,7 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
         )}
 
         {order.status === 'SERVED' && (
-          <div className="px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-black flex items-center gap-1.5 font-mono shadow-xs">
+          <div className="w-full py-2 rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-black flex items-center justify-center gap-1.5 font-mono">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>KOT {kotShortId} Served</span>
           </div>

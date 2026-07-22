@@ -11,7 +11,7 @@ import {
   KitchenEvent,
 } from '@ticketflow/types';
 import { validateStateTransition } from '../domain/stateMachine';
-import { orderRepository } from '../repositories/order.repository';
+import { orderRepository, OrderRepository } from '../repositories/order.repository';
 import { userRepository } from '../repositories/user.repository';
 import { prisma } from '../lib/prisma';
 
@@ -157,6 +157,7 @@ app.post('/api/db/clear', async (req: Request, res: Response) => {
     await prisma.kitchen.deleteMany({});
 
     globalEventStore.clear();
+    OrderRepository.resetSequenceCounter();
     await userRepository.ensureDefaultUsers();
 
     io.emit('order:reset', { kitchenId: DEFAULT_KITCHEN_ID });

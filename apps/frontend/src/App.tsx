@@ -278,6 +278,8 @@ function AppContent() {
     }
   };
 
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex font-sans selection:bg-blue-600 selection:text-white">
       {/* Sidebar Navigation */}
@@ -287,6 +289,8 @@ function AppContent() {
         isSystemOnline={isOnline}
         isOpenMobile={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
       />
 
       {/* Main App Content Area */}

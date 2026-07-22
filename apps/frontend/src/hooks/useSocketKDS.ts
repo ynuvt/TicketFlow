@@ -79,7 +79,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
           items: payload.items || [],
           priority: payload.priority || 'NORMAL',
           estimatedPrepTime: payload.estimatedPrepTime || 10,
-          status: payload.newStatus || 'PLACED',
+          status: (payload as any).status || payload.newStatus || 'PLACED',
           currentStationId: payload.stationId || 'intake',
           assignedUserId: payload.assignedUserId || null,
           createdAt: event.timestamp,

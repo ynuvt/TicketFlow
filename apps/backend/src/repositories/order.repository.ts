@@ -17,14 +17,24 @@ export interface TransitionOrderInput {
   nextStationId?: string;
 }
 
+let globalSequenceCounter: number | null = null;
+
 export class OrderRepository {
+  public static resetSequenceCounter() {
+    globalSequenceCounter = null;
+  }
+
   private async getNextSequenceNumber(tx: any, kitchenId: string): Promise<number> {
-    const maxResult = await tx.orderEvent.aggregate({
-      where: { kitchenId },
-      _max: { sequenceNumber: true },
-    });
-    const maxSeq = maxResult._max.sequenceNumber;
-    return maxSeq !== null && maxSeq !== undefined ? Number(maxSeq) + 1 : 1;
+    if (globalSequenceCounter === null) {
+      const maxResult = await tx.orderEvent.aggregate({
+        where: { kitchenId },
+        _max: { sequenceNumber: true },
+      });
+      const maxSeq = maxResult._max.sequenceNumber;
+      globalSequenceCounter = maxSeq !== null && maxSeq !== undefined ? Number(maxSeq) : 0;
+    }
+    globalSequenceCounter += 1;
+    return globalSequenceCounter;
   }
 
   // Helper to calculate dynamic predicted workload for a staff member at station S using elapsed time
@@ -124,17 +134,17 @@ export class OrderRepository {
       });
     }
 
-    // Filter to those who have space in their 20-min window
+    // 1. Try candidates who have space in their 20-min window
     const availableCandidates = candidateWorkloads.filter((c) => c.canAccept);
 
-    if (availableCandidates.length === 0) {
-      return null;
+    if (availableCandidates.length > 0) {
+      availableCandidates.sort((a, b) => a.workload - b.workload || a.avgTime - b.avgTime);
+      return availableCandidates[0].staffId;
     }
 
-    // Sort by predicted workload ascending, then by avgTime ascending
-    availableCandidates.sort((a, b) => a.workload - b.workload || a.avgTime - b.avgTime);
-
-    return availableCandidates[0].staffId;
+    // 2. Fallback: If all cooks exceed the 20-min cap, ALWAYS assign to the least-busy cook!
+    candidateWorkloads.sort((a, b) => a.workload - b.workload || a.avgTime - b.avgTime);
+    return candidateWorkloads[0].staffId;
   }
 
   // Process the waiting queue for S. This is called when a staff member finishes an order, freeing up workload
@@ -288,6 +298,7 @@ export class OrderRepository {
                 items: input.items,
                 priority: order.priority,
                 status: order.status,
+                newStatus: order.status,
                 stationId: order.currentStationId,
                 assignedUserId,
               },
