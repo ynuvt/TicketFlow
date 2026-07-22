@@ -9,6 +9,7 @@ import {
   ReplayResponsePayload,
 } from '@ticketflow/types';
 import { kitchenAudio } from '../utils/audio';
+import { User } from '../context/AuthContext';
 
 const SOCKET_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:4000';
 const KITCHEN_ID = 'kitchen-main';
@@ -21,7 +22,7 @@ export interface StationNetworkMap {
   expedite: boolean;
 }
 
-const LOCAL_STORAGE_KEY = 'ticketflow_station_networks';
+const SESSION_STORAGE_KEY = 'ticketflow_station_networks';
 
 const DEFAULT_STATION_NETWORKS: StationNetworkMap = {
   intake: true,
@@ -33,7 +34,7 @@ const DEFAULT_STATION_NETWORKS: StationNetworkMap = {
 
 function getInitialStationNetworks(): StationNetworkMap {
   try {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const saved = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (saved) {
       return { ...DEFAULT_STATION_NETWORKS, ...JSON.parse(saved) };
     }
@@ -43,7 +44,7 @@ function getInitialStationNetworks(): StationNetworkMap {
   return DEFAULT_STATION_NETWORKS;
 }
 
-export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager') {
+export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager', user: User | null) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [events, setEvents] = useState<KitchenEvent[]>([]);
   const [lastProcessedSequence, setLastProcessedSequence] = useState<number>(0);
@@ -80,6 +81,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
           estimatedPrepTime: payload.estimatedPrepTime || 10,
           status: payload.newStatus || 'PLACED',
           currentStationId: payload.stationId || 'intake',
+          assignedUserId: payload.assignedUserId || null,
           createdAt: event.timestamp,
           updatedAt: event.timestamp,
         };
@@ -98,6 +100,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
             ...existing,
             status: payload.newStatus,
             currentStationId: payload.stationId || existing.currentStationId,
+            assignedUserId: payload.assignedUserId !== undefined ? payload.assignedUserId : existing.assignedUserId,
             updatedAt: event.timestamp,
           };
           orderMap.set(event.orderId, updated);
@@ -154,18 +157,15 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
       }
 
       if (event.sequenceNumber <= lastSeqRef.current) {
-        // Duplicate or old sequence event -> drop
         return;
       }
 
       if (event.sequenceNumber === lastSeqRef.current + 1) {
-        // Sequential next event -> apply immediately
         applyEventToOrders(event);
         return;
       }
 
       if (event.sequenceNumber > lastSeqRef.current + 1) {
-        // Sequence Gap Detected -> Switch to SYNCING and request replay
         console.warn(
           `[KDS Engine] GAP DETECTED! Expected Seq #${lastSeqRef.current + 1}, Received #${event.sequenceNumber}`
         );
@@ -190,7 +190,6 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         }
       }
 
-      // Drain liveBuffer
       const sortedBuffer = [...liveBufferRef.current].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
       liveBufferRef.current = [];
 
@@ -222,13 +221,18 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
 
     socket.on('connect', () => {
       console.log(`[Socket] Connected to backend on ${SOCKET_URL}`);
-      socket.emit('station:join', { kitchenId: KITCHEN_ID, stationId: activeStationId });
+      socket.emit('station:join', { 
+        kitchenId: KITCHEN_ID, 
+        stationId: activeStationId,
+        userId: user?.id,
+        userRole: user?.role,
+        userAssignedStations: user?.assignedStations,
+      });
 
       if (lastSeqRef.current > 0) {
         requestReplay();
       } else {
         setConnectionStatus('ONLINE');
-        // Initial fetch of events if fresh connect
         socket.emit('order:replayRequest', {
           kitchenId: KITCHEN_ID,
           stationId: activeStationId,
@@ -253,7 +257,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     return () => {
       socket.disconnect();
     };
-  }, [activeStationId, handleIncomingEvent, handleReplayResponse, requestReplay]);
+  }, [activeStationId, handleIncomingEvent, handleReplayResponse, requestReplay, user]);
 
   // Methods to interact with server
   const createOrder = useCallback(
@@ -262,14 +266,16 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
       socketRef.current.emit('order:create', {
         ...payload,
         kitchenId: KITCHEN_ID,
+        userId: user?.id,
+        userRole: user?.role,
       });
     },
-    []
+    [user]
   );
 
   const transitionOrder = useCallback(
     (orderId: string, currentStatus: OrderStatus, newStatus: OrderStatus, stationId?: StationId) => {
-      // Optimistic local state update (instant card transition on click)
+      // Optimistic local state update
       setOrders((prevOrders) =>
         prevOrders.map((o) => {
           if (o.id === orderId) {
@@ -291,9 +297,11 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         currentStatus,
         newStatus,
         stationId,
+        userId: user?.id,
+        userRole: user?.role,
       });
     },
-    []
+    [user]
   );
 
   // Toggle station network ON/OFF manually
@@ -302,7 +310,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
       setStationNetworks((prev) => {
         const updated = { ...prev, [stationId]: !prev[stationId] };
         try {
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+          sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updated));
         } catch {}
 
         const isTurningOn = updated[stationId];
@@ -332,7 +340,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         expedite: online,
       };
       try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newNetworks));
+        sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(newNetworks));
       } catch {}
 
       setStationNetworks(newNetworks);

@@ -15,6 +15,7 @@ import {
   X,
   Users,
   LogOut,
+  Phone,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -33,34 +34,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile = false,
   onCloseMobile,
 }) => {
-  const { user, logout, hasStationAccess } = useAuth();
+  const { user, logout, isPathAllowed } = useAuth();
 
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'All Stations', path: '/all-stations', icon: LayoutGrid },
-    { name: 'Order Intake', path: '/intake', icon: ClipboardList, stationId: 'intake' },
-    { name: 'Prep Line', path: '/prep', icon: UtensilsCrossed, stationId: 'prep' },
-    { name: 'Grill & Cook', path: '/grill', icon: Flame, stationId: 'grill' },
-    { name: 'Plate & Assembly', path: '/assembly', icon: PackageCheck, stationId: 'assembly' },
-    { name: 'Expedite & Pass', path: '/expedite', icon: ConciergeBell, stationId: 'expedite' },
+    { name: 'Order Intake', path: '/intake', icon: ClipboardList },
+    { name: 'Prep Line', path: '/prep', icon: UtensilsCrossed },
+    { name: 'Grill & Cook', path: '/grill', icon: Flame },
+    { name: 'Plate & Assembly', path: '/assembly', icon: PackageCheck },
+    { name: 'Expedite & Pass', path: '/expedite', icon: ConciergeBell },
     { name: 'Orders', path: '/orders', icon: Receipt },
-    { name: 'Staff Management', path: '/staff', icon: Users, managerOnly: true },
+    { name: 'Staff Management', path: '/staff', icon: Users },
     { name: 'Reports', path: '/reports', icon: BarChart3 },
     { name: 'Alerts', path: '/alerts', icon: Bell },
     { name: 'Settings', path: '/settings', icon: Settings },
+    { name: 'Call Manager', path: '/help', icon: Phone },
   ];
 
   const isActivePath = (itemPath: string) => {
-    if (itemPath === '/') {
+    if (itemPath === '/dashboard') {
       return currentPath === '/' || currentPath === '/dashboard';
     }
     return currentPath === itemPath;
   };
 
   const filteredNavItems = navItems.filter((item) => {
-    if (item.managerOnly && user?.role !== 'MANAGER') return false;
-    if (item.stationId && !hasStationAccess(item.stationId)) return false;
-    return true;
+    return isPathAllowed(item.path);
   });
 
   const content = (

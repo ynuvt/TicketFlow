@@ -9,7 +9,7 @@ interface OrderTicketProps {
   activeStationId?: StationId | 'overview' | 'manager';
 }
 
-export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrder }) => {
+export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrder, activeStationId }) => {
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(
     Math.floor((Date.now() - order.createdAt) / 1000)
   );
@@ -127,6 +127,9 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
       <div className="p-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between gap-2">
         <div className="text-[11px] font-mono text-slate-400">
           Status: <span className="text-slate-700 font-bold">{order.status}</span>
+          {order.currentStationId !== 'intake' && !order.assignedUserId && order.status !== 'SERVED' && (
+            <span className="ml-1.5 text-[9px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded uppercase">Waiting</span>
+          )}
         </div>
 
         {action && (

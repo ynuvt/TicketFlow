@@ -17,11 +17,12 @@ import { StaffManagerView } from './views/StaffManagerView';
 import { ReportsView } from './views/ReportsView';
 import { AlertsView } from './views/AlertsView';
 import { SettingsView } from './views/SettingsView';
+import { HelpView } from './views/HelpView';
 import { Lock, ShieldAlert } from 'lucide-react';
 
 function AppContent() {
   const { currentPath, navigate } = useRouter();
-  const { user, hasStationAccess } = useAuth();
+  const { user, hasStationAccess, isPathAllowed } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [isAuditLogOpen, setIsAuditLogOpen] = useState<boolean>(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
@@ -59,7 +60,7 @@ function AppContent() {
     toggleStationNetwork,
     toggleGlobalNetwork,
     requestReplay,
-  } = useSocketKDS(activeStation);
+  } = useSocketKDS(activeStation, user);
 
   // Sync body background dynamically based on authentication state to prevent white screen flash
   useEffect(() => {
@@ -69,6 +70,22 @@ function AppContent() {
       document.body.style.backgroundColor = '#f8fafc'; // slate-50 (Dashboard View light background)
     }
   }, [user]);
+
+  // Automatic landing page redirection for restricted roles
+  useEffect(() => {
+    if (user) {
+      if (currentPath === '/' || currentPath === '/dashboard') {
+        if (user.role === 'RECEPTIONIST') {
+          navigate('/intake');
+        } else if (user.role === 'STAFF') {
+          // If staff has no access to root/dashboard, route to their first assigned station
+          if (!isPathAllowed('/dashboard') && user.assignedStations.length > 0) {
+            navigate(`/${user.assignedStations[0]}`);
+          }
+        }
+      }
+    }
+  }, [user, currentPath, navigate, isPathAllowed]);
 
   // If user is not authenticated, show Login Screen
   if (!user) {
@@ -151,26 +168,31 @@ function AppContent() {
   const headerMeta = getHeaderMeta();
 
   const renderCurrentView = () => {
-    // Station RBAC Protection Check
-    const stationRoutes: Record<string, string> = {
-      '/intake': 'intake',
-      '/prep': 'prep',
-      '/grill': 'grill',
-      '/assembly': 'assembly',
-      '/expedite': 'expedite',
-    };
-
-    if (stationRoutes[currentPath] && !hasStationAccess(stationRoutes[currentPath])) {
+    // RBAC Route Guard Screen check
+    if (!isPathAllowed(currentPath)) {
       return (
-        <div className="bg-rose-50 border border-dashed border-rose-300 rounded-2xl p-16 text-center space-y-3 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
+        <div className="bg-rose-50 border border-dashed border-rose-300 rounded-2xl p-16 text-center space-y-4 shadow-sm flex flex-col items-center max-w-2xl mx-auto my-8">
+          <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center">
             <ShieldAlert className="w-7 h-7" />
           </div>
-          <h3 className="text-lg font-bold text-rose-900">Station Access Restricted</h3>
+          <h3 className="text-lg font-bold text-rose-900">Restricted Route Access</h3>
           <p className="text-xs text-rose-600 max-w-md mx-auto">
-            Your account (<strong>@{user.username}</strong>) does not have permission to access the{' '}
-            <strong>{headerMeta.title}</strong>. Please contact your Admin Manager to assign this station privilege.
+            Your account (<strong>@{user.username}</strong>) with role <strong>{user.role}</strong> does not have permission to access <strong>{headerMeta.title}</strong>.
           </p>
+          <button
+            onClick={() => {
+              if (user.role === 'RECEPTIONIST') {
+                navigate('/intake');
+              } else if (user.role === 'STAFF' && user.assignedStations.length > 0) {
+                navigate(`/${user.assignedStations[0]}`);
+              } else {
+                navigate('/dashboard');
+              }
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow transition-colors"
+          >
+            Return to Default Station
+          </button>
         </div>
       );
     }
@@ -216,6 +238,7 @@ function AppContent() {
             onTransitionOrder={transitionOrder}
             isStationOnline={stationNetworks[stId]}
             onToggleStationNetwork={toggleStationNetwork}
+            onOpenCreateModal={() => setIsCreateModalOpen(true)}
           />
         );
 
@@ -233,6 +256,9 @@ function AppContent() {
 
       case '/settings':
         return <SettingsView />;
+
+      case '/help':
+        return <HelpView />;
 
       default:
         return (

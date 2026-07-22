@@ -95,18 +95,18 @@ export const LoginView: React.FC = () => {
         {/* Quick Credentials Preset Cards */}
         <div className="mt-8 pt-6 border-t border-slate-700/80 space-y-3">
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center">
-            Quick Admin & Staff Presets
+            Quick User Presets
           </p>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <button
               onClick={() => fillQuickLogin('admin', 'admin123')}
               className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
             >
               <div className="flex items-center gap-1.5">
                 <ChefHat className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-xs font-bold text-white">Admin Manager</span>
+                <span className="text-xs font-bold text-white">Admin</span>
               </div>
-              <p className="text-[10px] text-slate-400 font-mono mt-0.5">admin / admin123</p>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">admin / admin123</p>
             </button>
 
             <button
@@ -115,9 +115,20 @@ export const LoginView: React.FC = () => {
             >
               <div className="flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-blue-400" />
-                <span className="text-xs font-bold text-white">Prep & Grill Cook</span>
+                <span className="text-xs font-bold text-white">Cook Staff</span>
               </div>
-              <p className="text-[10px] text-slate-400 font-mono mt-0.5">cook1 / pass123</p>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">cook1 / pass123</p>
+            </button>
+
+            <button
+              onClick={() => fillQuickLogin('recep1', 'recep123')}
+              className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
+            >
+              <div className="flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs font-bold text-white">Reception</span>
+              </div>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">recep1 / recep123</p>
             </button>
           </div>
         </div>

@@ -21,6 +21,7 @@ export interface Order {
   estimatedPrepTime: number; // in minutes
   status: OrderStatus;
   currentStationId: StationId;
+  assignedUserId?: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -48,6 +49,7 @@ export interface KitchenEvent {
     items?: OrderItem[];
     priority?: 'NORMAL' | 'HIGH' | 'VIP';
     estimatedPrepTime?: number;
+    assignedUserId?: string | null;
   };
   timestamp: number;
 }
