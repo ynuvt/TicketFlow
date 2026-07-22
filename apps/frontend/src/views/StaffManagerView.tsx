@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserCheck, UserPlus, Shield, Key, Trash2, CheckCircle2, AlertCircle, Utensils, RefreshCw, Edit2 } from 'lucide-react';
 import { StationId } from '@ticketflow/types';
 import { useAuth } from '../context/AuthContext';
+import { WorkloadMetricsCard } from '../components/WorkloadMetricsCard';
 
 interface StaffUser {
   id: string;
@@ -199,6 +200,9 @@ export const StaffManagerView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Live Cook Workload & Station Metrics Component */}
+      <WorkloadMetricsCard />
+
       {/* View Header */}
       <div className="bg-white border border-slate-200/80 rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
         <div>

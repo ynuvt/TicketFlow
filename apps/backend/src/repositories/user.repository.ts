@@ -23,58 +23,154 @@ export class UserRepository {
   public async ensureDefaultUsers() {
     try {
       // 1. Manager Admin
-      const existingAdmin = await prisma.user.findUnique({
+      await prisma.user.upsert({
         where: { username: 'admin' },
+        update: { fullName: 'admin', assignedStations: ['intake', 'prep', 'grill', 'assembly', 'expedite'] },
+        create: {
+          id: 'user-admin',
+          username: 'admin',
+          password: 'admin123',
+          fullName: 'admin',
+          role: 'MANAGER',
+          assignedStations: ['intake', 'prep', 'grill', 'assembly', 'expedite'],
+          stationPrepTimes: {},
+        },
       });
-      if (!existingAdmin) {
-        await prisma.user.create({
-          data: {
-            username: 'admin',
-            password: 'admin123',
-            fullName: 'Admin Manager',
-            role: 'MANAGER',
-            assignedStations: ['intake', 'prep', 'grill', 'assembly', 'expedite'],
-            stationPrepTimes: {},
-          },
-        });
-        console.log('[Auth DB] Initialized default Admin Manager account (username: admin, pass: admin123)');
-      }
 
-      // 2. Kitchen Staff Cook
-      const existingCook = await prisma.user.findUnique({
+      // 2. Kitchen Staff Cook 1 (Prep)
+      await prisma.user.upsert({
         where: { username: 'cook1' },
+        update: { fullName: 'cook1', assignedStations: ['prep'], stationPrepTimes: { prep: 5 } },
+        create: {
+          id: 'user-cook1',
+          username: 'cook1',
+          password: 'pass123',
+          fullName: 'cook1',
+          role: 'STAFF',
+          assignedStations: ['prep'],
+          stationPrepTimes: { prep: 5 },
+        },
       });
-      if (!existingCook) {
-        await prisma.user.create({
-          data: {
-            username: 'cook1',
-            password: 'pass123',
-            fullName: 'Prep & Grill Cook',
-            role: 'STAFF',
-            assignedStations: ['prep', 'grill'],
-            stationPrepTimes: { prep: 5, grill: 7 },
-          },
-        });
-        console.log('[Auth DB] Initialized default Staff Cook account (username: cook1, pass: pass123)');
-      }
 
-      // 3. Receptionist Desk
-      const existingRecep = await prisma.user.findUnique({
-        where: { username: 'recep1' },
+      // 3. Kitchen Staff Cook 2 (Prep)
+      await prisma.user.upsert({
+        where: { username: 'cook2' },
+        update: { fullName: 'cook2', assignedStations: ['prep'], stationPrepTimes: { prep: 5 } },
+        create: {
+          id: 'user-cook2',
+          username: 'cook2',
+          password: 'pass123',
+          fullName: 'cook2',
+          role: 'STAFF',
+          assignedStations: ['prep'],
+          stationPrepTimes: { prep: 5 },
+        },
       });
-      if (!existingRecep) {
-        await prisma.user.create({
-          data: {
-            username: 'recep1',
-            password: 'recep123',
-            fullName: 'Reception Desk',
-            role: 'RECEPTIONIST',
-            assignedStations: ['intake'],
-            stationPrepTimes: {},
-          },
-        });
-        console.log('[Auth DB] Initialized default Receptionist account (username: recep1, pass: recep123)');
-      }
+
+      // 4. Kitchen Staff Cook 3 (Grill)
+      await prisma.user.upsert({
+        where: { username: 'cook3' },
+        update: { fullName: 'cook3', assignedStations: ['grill'], stationPrepTimes: { grill: 6 } },
+        create: {
+          id: 'user-cook3',
+          username: 'cook3',
+          password: 'pass123',
+          fullName: 'cook3',
+          role: 'STAFF',
+          assignedStations: ['grill'],
+          stationPrepTimes: { grill: 6 },
+        },
+      });
+
+      // 5. Kitchen Staff Cook 4 (Grill)
+      await prisma.user.upsert({
+        where: { username: 'cook4' },
+        update: { fullName: 'cook4', assignedStations: ['grill'], stationPrepTimes: { grill: 6 } },
+        create: {
+          id: 'user-cook4',
+          username: 'cook4',
+          password: 'pass123',
+          fullName: 'cook4',
+          role: 'STAFF',
+          assignedStations: ['grill'],
+          stationPrepTimes: { grill: 6 },
+        },
+      });
+
+      // 6. Kitchen Staff Cook 5 (Assembly)
+      await prisma.user.upsert({
+        where: { username: 'cook5' },
+        update: { fullName: 'cook5', assignedStations: ['assembly'], stationPrepTimes: { assembly: 5 } },
+        create: {
+          id: 'user-cook5',
+          username: 'cook5',
+          password: 'pass123',
+          fullName: 'cook5',
+          role: 'STAFF',
+          assignedStations: ['assembly'],
+          stationPrepTimes: { assembly: 5 },
+        },
+      });
+
+      // 7. Kitchen Staff Cook 6 (Assembly)
+      await prisma.user.upsert({
+        where: { username: 'cook6' },
+        update: { fullName: 'cook6', assignedStations: ['assembly'], stationPrepTimes: { assembly: 5 } },
+        create: {
+          id: 'user-cook6',
+          username: 'cook6',
+          password: 'pass123',
+          fullName: 'cook6',
+          role: 'STAFF',
+          assignedStations: ['assembly'],
+          stationPrepTimes: { assembly: 5 },
+        },
+      });
+
+      // 8. Kitchen Staff Cook 7 (Expedite)
+      await prisma.user.upsert({
+        where: { username: 'cook7' },
+        update: { fullName: 'cook7', assignedStations: ['expedite'], stationPrepTimes: { expedite: 4 } },
+        create: {
+          id: 'user-cook7',
+          username: 'cook7',
+          password: 'pass123',
+          fullName: 'cook7',
+          role: 'STAFF',
+          assignedStations: ['expedite'],
+          stationPrepTimes: { expedite: 4 },
+        },
+      });
+
+      // 9. Kitchen Staff Cook 8 (Expedite)
+      await prisma.user.upsert({
+        where: { username: 'cook8' },
+        update: { fullName: 'cook8', assignedStations: ['expedite'], stationPrepTimes: { expedite: 4 } },
+        create: {
+          id: 'user-cook8',
+          username: 'cook8',
+          password: 'pass123',
+          fullName: 'cook8',
+          role: 'STAFF',
+          assignedStations: ['expedite'],
+          stationPrepTimes: { expedite: 4 },
+        },
+      });
+
+      // 10. Receptionist Desk
+      await prisma.user.upsert({
+        where: { username: 'recep1' },
+        update: { fullName: 'recep1', assignedStations: ['intake'] },
+        create: {
+          id: 'user-recep1',
+          username: 'recep1',
+          password: 'recep123',
+          fullName: 'recep1',
+          role: 'RECEPTIONIST',
+          assignedStations: ['intake'],
+          stationPrepTimes: {},
+        },
+      });
     } catch (err: any) {
       console.error('[Auth DB] Failed to ensure default users:', err.message);
     }

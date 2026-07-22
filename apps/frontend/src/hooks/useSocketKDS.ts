@@ -95,22 +95,26 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         }
       } else if (event.type === 'ORDER_TRANSITIONED') {
         const existing = orderMap.get(event.orderId);
-        if (existing) {
-          const updated: Order = {
-            ...existing,
-            status: payload.newStatus,
-            currentStationId: payload.stationId || existing.currentStationId,
-            assignedUserId: payload.assignedUserId !== undefined ? payload.assignedUserId : existing.assignedUserId,
-            updatedAt: event.timestamp,
-          };
-          orderMap.set(event.orderId, updated);
+        const updated: Order = {
+          id: event.orderId,
+          kitchenId: event.kitchenId,
+          customerName: existing ? existing.customerName : (payload.customerName || 'Kitchen Order'),
+          items: existing ? existing.items : (payload.items || []),
+          priority: existing ? existing.priority : (payload.priority || 'NORMAL'),
+          estimatedPrepTime: existing ? existing.estimatedPrepTime : 10,
+          createdAt: existing ? existing.createdAt : event.timestamp,
+          status: payload.newStatus,
+          currentStationId: payload.stationId || (existing ? existing.currentStationId : 'prep'),
+          assignedUserId: payload.assignedUserId !== undefined ? payload.assignedUserId : (existing ? existing.assignedUserId : null),
+          updatedAt: event.timestamp,
+        };
+        orderMap.set(event.orderId, updated);
 
-          // Sound trigger for state transition or served
-          if (payload.newStatus === 'SERVED') {
-            kitchenAudio.playServedSound();
-          } else {
-            kitchenAudio.playStatusTransitionSound();
-          }
+        // Sound trigger for state transition or served
+        if (payload.newStatus === 'SERVED') {
+          kitchenAudio.playServedSound();
+        } else {
+          kitchenAudio.playStatusTransitionSound();
         }
       }
 
@@ -252,6 +256,14 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
 
     socket.on('order:replayResponse', (response: ReplayResponsePayload) => {
       handleReplayResponse(response);
+    });
+
+    socket.on('order:reset', () => {
+      console.log('[Socket] Database reset notification received. Clearing local dashboard state...');
+      setOrders([]);
+      setEvents([]);
+      setLastProcessedSequence(0);
+      lastSeqRef.current = 0;
     });
 
     return () => {

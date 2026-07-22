@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Order, OrderStatus, StationId } from '@ticketflow/types';
 import { STATIONS } from '../types/kds';
 import { OrderTicket } from '../components/OrderTicket';
 import { StationNetworkMap } from '../hooks/useSocketKDS';
 import { Wifi, WifiOff } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface OverviewBoardViewProps {
   orders: Order[];
@@ -18,7 +19,24 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
   stationNetworks,
   onToggleStationNetwork,
 }) => {
+  const { authFetch } = useAuth();
+  const [users, setUsers] = useState<any[]>([]);
   const stationKeys: StationId[] = ['intake', 'prep', 'grill', 'assembly', 'expedite'];
+
+  useEffect(() => {
+    authFetch('http://localhost:4000/api/users')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.users) setUsers(data.users);
+      })
+      .catch((err) => console.error('[OverviewBoard] Failed to fetch users:', err));
+  }, [authFetch]);
+
+  const getAssignedUserName = (userId?: string | null) => {
+    if (!userId) return undefined;
+    const match = users.find((u) => u.id === userId);
+    return match ? match.fullName : undefined;
+  };
 
   return (
     <div className="flex md:grid md:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-5 overflow-x-auto pb-4 snap-x snap-mandatory">
@@ -87,6 +105,7 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
                     order={order}
                     onTransitionOrder={onTransitionOrder}
                     activeStationId={stId}
+                    assignedStaffName={getAssignedUserName(order.assignedUserId)}
                   />
                 ))
               )}

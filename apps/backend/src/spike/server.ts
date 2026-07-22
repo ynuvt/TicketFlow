@@ -136,6 +136,37 @@ app.get('/api/events', (req: Request, res: Response) => {
   res.json({ kitchenId, events, latestSequence: globalEventStore.getLatestSequence(kitchenId) });
 });
 
+app.get('/api/metrics/workload', async (req: Request, res: Response) => {
+  const kitchenId = (req.query.kitchenId as string) || DEFAULT_KITCHEN_ID;
+  try {
+    const metrics = await orderRepository.getKitchenWorkloadMetrics(kitchenId);
+    res.json(metrics);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/db/clear', async (req: Request, res: Response) => {
+  try {
+    await prisma.orderItem.deleteMany({});
+    await prisma.orderEvent.deleteMany({});
+    await prisma.kitchenMetric.deleteMany({});
+    await prisma.order.deleteMany({});
+    await prisma.station.deleteMany({});
+    await prisma.user.deleteMany({});
+    await prisma.kitchen.deleteMany({});
+
+    globalEventStore.clear();
+    await userRepository.ensureDefaultUsers();
+
+    io.emit('order:reset', { kitchenId: DEFAULT_KITCHEN_ID });
+
+    res.json({ success: true, message: 'Database and in-memory event store cleared successfully!' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Create Order (MANAGER and RECEPTIONIST only)
 app.post('/api/orders', authorizeRoles(['MANAGER', 'RECEPTIONIST']), async (req: Request, res: Response) => {
   const data: CreateOrderPayload = req.body;

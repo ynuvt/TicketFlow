@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Order, OrderStatus, StationId } from '@ticketflow/types';
 import { STATIONS } from '../types/kds';
 import { OrderTicket } from '../components/OrderTicket';
-import { Wifi, WifiOff, ChefHat, CheckCircle2, Layers, AlertCircle } from 'lucide-react';
+import { Wifi, WifiOff, ChefHat, CheckCircle2, Layers, AlertCircle, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface StationBoardViewProps {
@@ -24,7 +24,27 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
 }) => {
   const { user, authFetch } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
+  const [customerEta, setCustomerEta] = useState<number | null>(null);
   const stationConfig = STATIONS[stationId] || STATIONS.intake;
+
+  // Fetch live Customer ETA metrics for Intake board
+  useEffect(() => {
+    if (stationId === 'intake') {
+      const loadEta = () => {
+        authFetch('http://localhost:4000/api/metrics/workload')
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.totalCustomerEtaMinutes !== undefined) {
+              setCustomerEta(data.totalCustomerEtaMinutes);
+            }
+          })
+          .catch((err) => console.error('[StationBoard] ETA fetch failed:', err));
+      };
+      loadEta();
+      const interval = setInterval(loadEta, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [stationId, authFetch]);
 
   // Fetch users if manager so we can map assignedUserId to actual staff names
   useEffect(() => {
@@ -63,8 +83,12 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
     if (o.currentStationId !== stationId) return false;
 
     if (user?.role === 'STAFF') {
-      // Staff only sees orders assigned to them
-      return o.assignedUserId === user.id;
+      // Staff sees orders assigned to their user ID, username, or deterministic user-ID
+      return (
+        o.assignedUserId === user.id ||
+        o.assignedUserId === user.username ||
+        o.assignedUserId === `user-${user.username}`
+      );
     } else {
       // Manager/Receptionist sees all assigned orders at S
       return !!o.assignedUserId;
@@ -91,6 +115,13 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
         </div>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
+          {stationId === 'intake' && customerEta !== null && (
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200/90 px-3.5 py-2 rounded-xl text-amber-800 text-xs font-bold font-mono shadow-2xs">
+              <Clock className="w-4 h-4 text-amber-600" />
+              <span>Est. Preparation Time: <strong className="text-amber-950 text-xs font-extrabold ml-1">{customerEta} mins</strong></span>
+            </div>
+          )}
+
           {stationId === 'intake' && onOpenCreateModal && (
             <button
               onClick={onOpenCreateModal}
@@ -212,13 +243,8 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
                     order={order}
                     onTransitionOrder={onTransitionOrder}
                     activeStationId={stationId}
+                    assignedStaffName={getAssignedUserName(order.assignedUserId)}
                   />
-                  {/* Manager view: Add a top banner overlay showing who the ticket is assigned to */}
-                  {user?.role === 'MANAGER' && order.assignedUserId && (
-                    <div className="absolute top-2 right-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-900/90 text-white text-[9px] font-bold shadow font-mono pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity">
-                      <span>👤 {getAssignedUserName(order.assignedUserId)}</span>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>

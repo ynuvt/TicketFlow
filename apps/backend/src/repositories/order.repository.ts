@@ -27,6 +27,62 @@ export class OrderRepository {
     return maxSeq !== null && maxSeq !== undefined ? Number(maxSeq) + 1 : 1;
   }
 
+  // Helper to calculate dynamic predicted workload for a staff member at station S using elapsed time
+  public async calculateStaffPredictedWorkload(
+    tx: any,
+    staffId: string,
+    stationId: string,
+    kitchenId: string
+  ): Promise<{ predictedWorkload: number; activeCount: number; avgTime: number }> {
+    const staff = await tx.user.findUnique({ where: { id: staffId } });
+    if (!staff) return { predictedWorkload: 0, activeCount: 0, avgTime: 5 };
+
+    const prepTimes = (staff.stationPrepTimes as Record<string, number>) || {};
+    const avgTime = prepTimes[stationId] !== undefined ? Number(prepTimes[stationId]) : 5;
+
+    // Fetch active assigned orders for this staff member at station S sorted by updatedAt asc
+    const activeOrders = await tx.order.findMany({
+      where: {
+        kitchenId,
+        currentStationId: stationId,
+        assignedUserId: staffId,
+        status: { not: 'SERVED' },
+      },
+      orderBy: { updatedAt: 'asc' },
+    });
+
+    if (activeOrders.length === 0) {
+      return { predictedWorkload: 0, activeCount: 0, avgTime };
+    }
+
+    const now = Date.now();
+    let totalWorkload = 0;
+
+    for (let i = 0; i < activeOrders.length; i++) {
+      const order = activeOrders[i];
+      if (i === 0) {
+        // First order is currently in-progress
+        const elapsedMinutes = (now - new Date(order.updatedAt).getTime()) / 60000;
+        if (elapsedMinutes >= avgTime) {
+          // Overdue order: real delay extends the predicted timeline
+          totalWorkload += elapsedMinutes;
+        } else {
+          // Normal in-progress order: remaining time until completion
+          totalWorkload += Math.max(avgTime - elapsedMinutes, 0);
+        }
+      } else {
+        // Queued behind in cook's personal queue -> full avgTime
+        totalWorkload += avgTime;
+      }
+    }
+
+    return {
+      predictedWorkload: Math.round(totalWorkload * 10) / 10,
+      activeCount: activeOrders.length,
+      avgTime,
+    };
+  }
+
   // Calculate and find the best staff member to route an order at a target station S
   private async routeOrderToStaff(tx: any, stationId: string, kitchenId: string): Promise<string | null> {
     if (stationId === 'intake') {
@@ -50,25 +106,19 @@ export class OrderRepository {
     const candidateWorkloads = [];
 
     for (const staff of staffMembers) {
-      // Count active orders assigned to this staff at station S
-      const activeOrdersCount = await tx.order.count({
-        where: {
-          kitchenId,
-          currentStationId: stationId,
-          assignedUserId: staff.id,
-          status: { not: 'SERVED' },
-        },
-      });
+      const { predictedWorkload, avgTime } = await this.calculateStaffPredictedWorkload(
+        tx,
+        staff.id,
+        stationId,
+        kitchenId
+      );
 
-      const prepTimes = (staff.stationPrepTimes as Record<string, number>) || {};
-      const avgTime = prepTimes[stationId] !== undefined ? Number(prepTimes[stationId]) : 5;
-
-      const workload = activeOrdersCount * avgTime;
-      const canAccept = (activeOrdersCount + 1) * avgTime <= 20;
+      // Order fits if current predicted workload + avgTime <= 20
+      const canAccept = (predictedWorkload + avgTime) <= 20;
 
       candidateWorkloads.push({
         staffId: staff.id,
-        workload,
+        workload: predictedWorkload,
         avgTime,
         canAccept,
       });
@@ -81,7 +131,7 @@ export class OrderRepository {
       return null;
     }
 
-    // Sort by workload ascending, and then by average prep time ascending
+    // Sort by predicted workload ascending, then by avgTime ascending
     availableCandidates.sort((a, b) => a.workload - b.workload || a.avgTime - b.avgTime);
 
     return availableCandidates[0].staffId;
@@ -193,8 +243,11 @@ export class OrderRepository {
           ? 'HIGH'
           : 'NORMAL';
 
-      const initialStation = input.initialStationId || 'intake';
-      // Route the order upon creation if initial station has staff limits
+      // Automatically push new intake orders directly to prep for cooks
+      const initialStation = (!input.initialStationId || input.initialStationId === 'intake') ? 'prep' : input.initialStationId;
+      const initialStatus = initialStation === 'prep' ? 'PREPARING' : 'PLACED';
+
+      // Route the order upon creation directly to available prep cooks
       const assignedUserId = await this.routeOrderToStaff(tx, initialStation, input.kitchenId);
 
       const order = await tx.order.create({
@@ -203,7 +256,7 @@ export class OrderRepository {
           customerName: input.customerName,
           priority: priorityEnum,
           estimatedPrepTime: input.estimatedPrepTime,
-          status: 'PLACED',
+          status: initialStatus,
           currentStationId: initialStation,
           assignedUserId,
           orderItems: {
@@ -303,6 +356,9 @@ export class OrderRepository {
                 newStatus: input.targetStatus,
                 stationId: targetStationId,
                 assignedUserId: targetAssignedUserId,
+                customerName: currentOrder?.customerName || 'Kitchen Order',
+                items: currentOrder?.orderItems || [],
+                priority: currentOrder?.priority || 'NORMAL',
               },
             },
           });
@@ -356,6 +412,125 @@ export class OrderRepository {
       },
       orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
     });
+  }
+
+  public async getKitchenWorkloadMetrics(kitchenId: string) {
+    const stations = ['prep', 'grill', 'assembly', 'expedite'];
+    const staffMembers = await prisma.user.findMany({
+      where: { role: 'STAFF' },
+    });
+
+    const now = Date.now();
+    const staffMetrics = [];
+
+    for (const staff of staffMembers) {
+      const stationBreakdown: Record<string, { workload: number; activeCount: number; avgTime: number; isOverdue: boolean }> = {};
+      let totalCookWorkload = 0;
+
+      for (const stId of staff.assignedStations) {
+        const prepTimes = (staff.stationPrepTimes as Record<string, number>) || {};
+        const avgTime = prepTimes[stId] !== undefined ? Number(prepTimes[stId]) : 5;
+
+        const activeOrders = await prisma.order.findMany({
+          where: {
+            kitchenId,
+            currentStationId: stId,
+            assignedUserId: staff.id,
+            status: { not: 'SERVED' },
+          },
+          orderBy: { updatedAt: 'asc' },
+        });
+
+        let stWorkload = 0;
+        let isOverdue = false;
+
+        for (let i = 0; i < activeOrders.length; i++) {
+          const order = activeOrders[i];
+          if (i === 0) {
+            const elapsed = (now - new Date(order.updatedAt).getTime()) / 60000;
+            if (elapsed >= avgTime) {
+              stWorkload += elapsed;
+              isOverdue = true;
+            } else {
+              stWorkload += Math.max(avgTime - elapsed, 0);
+            }
+          } else {
+            stWorkload += avgTime;
+          }
+        }
+
+        stWorkload = Math.round(stWorkload * 10) / 10;
+        totalCookWorkload += stWorkload;
+
+        stationBreakdown[stId] = {
+          workload: stWorkload,
+          activeCount: activeOrders.length,
+          avgTime,
+          isOverdue,
+        };
+      }
+
+      staffMetrics.push({
+        id: staff.id,
+        fullName: staff.fullName,
+        username: staff.username,
+        assignedStations: staff.assignedStations,
+        totalPredictedWorkload: Math.round(totalCookWorkload * 10) / 10,
+        stationBreakdown,
+      });
+    }
+
+    // Station Summary & Waiting Queues
+    const stationSummaries: Record<string, { waitingCount: number; activeCount: number; shortestTimeline: number }> = {};
+    let totalPipelineEta = 0;
+
+    for (const stId of stations) {
+      const waitingCount = await prisma.order.count({
+        where: {
+          kitchenId,
+          currentStationId: stId,
+          assignedUserId: null,
+          status: { not: 'SERVED' },
+        },
+      });
+
+      const activeCount = await prisma.order.count({
+        where: {
+          kitchenId,
+          currentStationId: stId,
+          assignedUserId: { not: null },
+          status: { not: 'SERVED' },
+        },
+      });
+
+      // Find shortest predicted completion timeline among staff assigned to stId
+      const staffForStation = staffMetrics.filter((s) => s.assignedStations.includes(stId));
+      let shortestStaffTimeline = 5; // default fallback if no staff assigned
+
+      if (staffForStation.length > 0) {
+        const timelines = staffForStation.map((s) => s.stationBreakdown[stId]?.workload || 0);
+        shortestStaffTimeline = Math.min(...timelines);
+      }
+
+      // Add waiting queue delay (distributed across staff)
+      const waitingDelay = staffForStation.length > 0 ? (waitingCount * 5) / staffForStation.length : waitingCount * 5;
+      const stationTotalTimeline = Math.round((shortestStaffTimeline + waitingDelay) * 10) / 10;
+
+      stationSummaries[stId] = {
+        waitingCount,
+        activeCount,
+        shortestTimeline: stationTotalTimeline,
+      };
+
+      totalPipelineEta += stationTotalTimeline;
+    }
+
+    return {
+      staffMetrics,
+      stationSummaries,
+      totalCustomerEtaMinutes: Math.round(totalPipelineEta),
+      updatedAt: now,
+    };
   }
 }
 

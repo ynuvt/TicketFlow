@@ -59,6 +59,12 @@ export class InMemoryEventStore {
   public getLatestSequence(kitchenId: string): number {
     return this.sequences.get(kitchenId) || 0;
   }
+
+  public clear() {
+    this.events.clear();
+    this.sequences.clear();
+    console.log('[EventStore] In-memory event cache cleared.');
+  }
 }
 
 export const globalEventStore = new InMemoryEventStore();

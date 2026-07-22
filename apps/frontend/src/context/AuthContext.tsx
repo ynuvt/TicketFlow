@@ -83,13 +83,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isPathAllowed = (path: string): boolean => {
     if (!user) return false;
-    if (user.role === 'MANAGER') return true;
 
     // Normalize path to exclude query parameters and handle root
     const normalizedPath = path.split('?')[0];
     const normPath = normalizedPath === '/' ? '' : normalizedPath;
 
-    if (normPath === '/help') return true;
+    // Help / Call Manager option is only for Staff & Receptionists
+    if (normPath === '/help') {
+      return user.role === 'STAFF' || user.role === 'RECEPTIONIST';
+    }
+
+    if (user.role === 'MANAGER') return true;
 
     if (user.role === 'RECEPTIONIST') {
       return normPath === '/intake';

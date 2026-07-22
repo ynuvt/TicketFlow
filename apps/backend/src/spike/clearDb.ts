@@ -1,42 +1,63 @@
+import http from 'http';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+function callServerClearApi(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const req = http.request(
+      {
+        hostname: 'localhost',
+        port: 4000,
+        path: '/api/db/clear',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+      (res) => {
+        let body = '';
+        res.on('data', (chunk) => (body += chunk));
+        res.on('end', () => {
+          if (res.statusCode === 200) {
+            console.log('Successfully called backend /api/db/clear endpoint.');
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        });
+      }
+    );
+
+    req.on('error', () => resolve(false));
+    req.end();
+  });
+}
+
 async function main() {
   console.log('--------------------------------------------------');
-  console.log('TicketFlow Database Purge Utility');
+  console.log('TicketFlow Database & Memory Store Purge Utility');
   console.log('--------------------------------------------------');
 
+  const serverCleared = await callServerClearApi();
+
+  if (serverCleared) {
+    console.log('Database, server memory cache, and client screens wiped clean!');
+    return;
+  }
+
+  // Fallback if backend server is not running
   try {
-    console.log('Deleting OrderItems...');
-    const orderItems = await prisma.orderItem.deleteMany({});
-    console.log(`Deleted ${orderItems.count} order items.`);
+    console.log('Backend server offline. Performing direct Prisma database cleanup...');
+    await prisma.orderItem.deleteMany({});
+    await prisma.orderEvent.deleteMany({});
+    await prisma.kitchenMetric.deleteMany({});
+    await prisma.order.deleteMany({});
+    await prisma.station.deleteMany({});
+    await prisma.user.deleteMany({});
+    await prisma.kitchen.deleteMany({});
 
-    console.log('Deleting OrderEvents...');
-    const orderEvents = await prisma.orderEvent.deleteMany({});
-    console.log(`Deleted ${orderEvents.count} order events.`);
-
-    console.log('Deleting KitchenMetrics...');
-    const kitchenMetrics = await prisma.kitchenMetric.deleteMany({});
-    console.log(`Deleted ${kitchenMetrics.count} kitchen metrics.`);
-
-    console.log('Deleting Orders...');
-    const orders = await prisma.order.deleteMany({});
-    console.log(`Deleted ${orders.count} orders.`);
-
-    console.log('Deleting Stations...');
-    const stations = await prisma.station.deleteMany({});
-    console.log(`Deleted ${stations.count} stations.`);
-
-    console.log('Deleting Users...');
-    const users = await prisma.user.deleteMany({});
-    console.log(`Deleted ${users.count} users.`);
-
-    console.log('Deleting Kitchens...');
-    const kitchens = await prisma.kitchen.deleteMany({});
-    console.log(`Deleted ${kitchens.count} kitchens.`);
-
-    console.log('\nAll data purged successfully! Database schema is empty and clean.');
+    console.log('\nAll database tables purged successfully!');
   } catch (err: any) {
     console.error('Failed to purge database:', err.message);
   }
