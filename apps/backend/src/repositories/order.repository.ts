@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { OrderStatus } from '../domain/stateMachine';
+import { globalEventStore } from '../spike/eventStore';
 
 export interface CreateOrderInput {
   kitchenId: string;
@@ -20,7 +21,18 @@ export interface TransitionOrderInput {
 let globalSequenceCounter: number | null = null;
 
 export class OrderRepository {
-  public static onlineUserIds = new Set<string>();
+  public static onlineUserIds = new Set<string>([
+    'user-admin',
+    'user-cook1',
+    'user-cook2',
+    'user-cook3',
+    'user-cook4',
+    'user-cook5',
+    'user-cook6',
+    'user-cook7',
+    'user-cook8',
+    'user-recep1'
+  ]);
   public static ioInstance: any = null;
   public static offlineTimers = new Map<string, NodeJS.Timeout>();
   public static originalAssignments = new Map<string, string[]>();
@@ -154,13 +166,12 @@ export class OrderRepository {
       return availableCandidates[0].staffId;
     }
 
-    // 2. Fallback: If all cooks exceed the 20-min cap, ALWAYS assign to the least-busy cook!
-    candidateWorkloads.sort((a, b) => a.workload - b.workload || a.avgTime - b.avgTime);
-    return candidateWorkloads[0].staffId;
+    // If all cooks exceed the 20-min cap, keep the order in the waiting pool (assignedUserId = null)
+    return null;
   }
 
   // Process the waiting queue for S. This is called when a staff member finishes an order, freeing up workload
-  private async assignWaitingOrders(
+  public async assignWaitingOrders(
     tx: any,
     stationId: string,
     kitchenId: string
@@ -198,6 +209,7 @@ export class OrderRepository {
           where: { id: oldestWaiting.id },
           data: {
             assignedUserId,
+            status: 'PREPARING',
           },
           include: {
             orderItems: true,
@@ -217,9 +229,12 @@ export class OrderRepository {
                 sequenceNumber: BigInt(nextSequence),
                 type: 'ORDER_TRANSITIONED',
                 payload: {
-                  newStatus: oldestWaiting.status,
+                  newStatus: 'PREPARING',
                   stationId,
                   assignedUserId,
+                  customerName: oldestWaiting.customerName,
+                  items: oldestWaiting.orderItems || [],
+                  priority: oldestWaiting.priority,
                 },
               },
             });
@@ -238,6 +253,82 @@ export class OrderRepository {
             order: updatedOrder,
             event: { ...event, sequenceNumber: Number(event.sequenceNumber) },
           });
+        }
+
+        // Backpressure check: If we promoted a waiting order at prep,
+        // we have room in the prep waiting queue. Pull the oldest from intake!
+        if (stationId === 'prep') {
+          const prepWaitingCount = await tx.order.count({
+            where: {
+              kitchenId,
+              currentStationId: 'prep',
+              assignedUserId: null,
+              status: { not: 'SERVED' }
+            }
+          });
+
+          if (prepWaitingCount < 10) {
+            const oldestIntake = await tx.order.findFirst({
+              where: {
+                kitchenId,
+                currentStationId: 'intake',
+                assignedUserId: null,
+                status: { not: 'SERVED' }
+              },
+              orderBy: { createdAt: 'asc' }
+            });
+
+            if (oldestIntake) {
+              const promotedOrder = await tx.order.update({
+                where: { id: oldestIntake.id },
+                data: {
+                  currentStationId: 'prep',
+                  status: 'PLACED',
+                  updatedAt: new Date()
+                },
+                include: { orderItems: true }
+              });
+
+              let promoSeq = await this.getNextSequenceNumber(tx, kitchenId);
+              let promoEvent = null;
+              let promoAttempts = 0;
+
+              while (!promoEvent && promoAttempts < 5) {
+                try {
+                  promoEvent = await tx.orderEvent.create({
+                    data: {
+                      kitchenId,
+                      orderId: oldestIntake.id,
+                      sequenceNumber: BigInt(promoSeq),
+                      type: 'ORDER_TRANSITIONED',
+                      payload: {
+                        newStatus: 'PLACED',
+                        stationId: 'prep',
+                        assignedUserId: null,
+                        customerName: oldestIntake.customerName,
+                        items: oldestIntake.orderItems || [],
+                        priority: oldestIntake.priority,
+                      }
+                    }
+                  });
+                } catch (err: any) {
+                  if (err.code === 'P2002') {
+                    promoSeq++;
+                    promoAttempts++;
+                  } else {
+                    throw err;
+                  }
+                }
+              }
+
+              if (promoEvent) {
+                extraEvents.push({
+                  order: promotedOrder,
+                  event: { ...promoEvent, sequenceNumber: Number(promoEvent.sequenceNumber) }
+                });
+              }
+            }
+          }
         }
       } else {
         break;
@@ -265,12 +356,42 @@ export class OrderRepository {
           ? 'HIGH'
           : 'NORMAL';
 
-      // Automatically push new intake orders directly to prep for cooks
-      const initialStation = (!input.initialStationId || input.initialStationId === 'intake') ? 'prep' : input.initialStationId;
-      const initialStatus = initialStation === 'prep' ? 'PREPARING' : 'PLACED';
+      // Automatically route new intake/prep orders to prep cooks under the 20-min cap,
+      // or to prep waiting queue if size < 10, or keep at intake.
+      let initialStation = input.initialStationId || 'intake';
+      let initialStatus: OrderStatus = 'PLACED';
+      let assignedUserId: string | null = null;
 
-      // Route the order upon creation directly to available prep cooks
-      const assignedUserId = await this.routeOrderToStaff(tx, initialStation, input.kitchenId);
+      if (initialStation === 'intake' || initialStation === 'prep') {
+        const routeCookId = await this.routeOrderToStaff(tx, 'prep', input.kitchenId);
+        if (routeCookId) {
+          initialStation = 'prep';
+          assignedUserId = routeCookId;
+          initialStatus = 'PREPARING';
+        } else {
+          const prepWaitingCount = await tx.order.count({
+            where: {
+              kitchenId: input.kitchenId,
+              currentStationId: 'prep',
+              assignedUserId: null,
+              status: { not: 'SERVED' },
+            },
+          });
+
+          if (prepWaitingCount < 10) {
+            initialStation = 'prep';
+            assignedUserId = null;
+            initialStatus = 'PLACED';
+          } else {
+            initialStation = 'intake';
+            assignedUserId = null;
+            initialStatus = 'PLACED';
+          }
+        }
+      } else {
+        assignedUserId = await this.routeOrderToStaff(tx, initialStation, input.kitchenId);
+        initialStatus = assignedUserId ? 'PREPARING' : 'PLACED';
+      }
 
       const order = await tx.order.create({
         data: {
@@ -662,6 +783,7 @@ export class OrderRepository {
           };
 
           const room = `kitchen:${kitchenId}`;
+          globalEventStore.appendEvent(clientEvent);
           io.to(room).emit('order:transition', clientEvent);
           console.log(`[Network Re-routing] Order ${order.id} reassigned from ${userId} to ${newStaffId}`);
         }
@@ -800,6 +922,7 @@ export class OrderRepository {
                 timestamp: new Date(event.createdAt).getTime()
               };
 
+              globalEventStore.appendEvent(clientEvent);
               io.to(`kitchen:${kitchenId}`).emit('order:transition', clientEvent);
               console.log(`[Network Reconnect] Restored original order ${orderId} assignment to ${userId}`);
             });
@@ -859,6 +982,7 @@ export class OrderRepository {
               payload: typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload,
               timestamp: new Date(event.createdAt).getTime()
             };
+            globalEventStore.appendEvent(clientEvent);
             io.to(`kitchen:${kitchenId}`).emit('order:transition', clientEvent);
           });
         }

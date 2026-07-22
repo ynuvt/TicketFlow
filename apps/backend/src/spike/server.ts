@@ -1,6 +1,8 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
+import fs from 'fs';
+import path from 'path';
 import { globalEventStore } from './eventStore';
 import {
   ReplayRequestPayload,
@@ -140,6 +142,46 @@ app.get('/api/events', (req: Request, res: Response) => {
   const sinceSeq = parseInt((req.query.since as string) || '0', 10);
   const events = globalEventStore.getEventsAfter(kitchenId, sinceSeq);
   res.json({ kitchenId, events, latestSequence: globalEventStore.getLatestSequence(kitchenId) });
+});
+
+// System Settings persistence setup
+let printKotEnabled = false;
+const SETTINGS_FILE = path.join(process.cwd(), 'settings.json');
+
+try {
+  if (fs.existsSync(SETTINGS_FILE)) {
+    const data = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+    if (data.printKotEnabled !== undefined) {
+      printKotEnabled = !!data.printKotEnabled;
+    }
+    console.log(`[Settings] Loaded printKotEnabled = ${printKotEnabled} from settings.json`);
+  }
+} catch (err) {
+  console.error('[Settings] Failed to load settings:', err);
+}
+
+function saveSettings() {
+  try {
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ printKotEnabled }), 'utf-8');
+  } catch (err) {
+    console.error('[Settings] Failed to save settings:', err);
+  }
+}
+
+// System Settings API Endpoints
+app.get('/api/settings', (req: Request, res: Response) => {
+  res.json({ printKotEnabled });
+});
+
+app.post('/api/settings', (req: Request, res: Response) => {
+  const { printKotEnabled: newValue } = req.body;
+  if (newValue !== undefined) {
+    printKotEnabled = !!newValue;
+    saveSettings();
+    io.emit('settings:update', { printKotEnabled });
+    console.log(`[Settings] Broadcasted printKotEnabled = ${printKotEnabled}`);
+  }
+  res.json({ success: true, printKotEnabled });
 });
 
 app.get('/api/metrics/workload', async (req: Request, res: Response) => {
@@ -330,7 +372,25 @@ io.on('connection', (socket: Socket) => {
       io.emit('user:connection_change', { userId, online: true });
       console.log(`[Socket] User ${userId} joined online.`);
       // Reconnection handler: restore previous assignments & balance workload
-      orderRepository.handleUserReconnect(userId);
+      orderRepository.handleUserReconnect(userId).then(async () => {
+        // Automatically check and assign waiting pool orders for their joined station
+        if (userRole === 'STAFF') {
+          try {
+            await prisma.$transaction(async (tx) => {
+              const extraEvents = await orderRepository.assignWaitingOrders(tx, stationId, kitchenId);
+              if (extraEvents && extraEvents.length > 0) {
+                console.log(`[Socket] Promoted ${extraEvents.length} waiting orders on user connection.`);
+                for (const extra of extraEvents) {
+                  globalEventStore.appendEvent(extra.event);
+                  io.to(room).emit('order:transition', extra.event);
+                }
+              }
+            });
+          } catch (err: any) {
+            console.error('[Socket] Failed to assign waiting orders on connect:', err.message);
+          }
+        }
+      });
     }
 
     socket.join(room);

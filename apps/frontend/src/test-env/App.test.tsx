@@ -1,28 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { StationId } from '@ticketflow/types';
-import { useRouter } from './hooks/useRouter';
-import { useSocketKDS } from './hooks/useSocketKDS';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { Sidebar } from './components/Sidebar';
-import { Header } from './components/Header';
-import { OrderCreatorModal } from './components/OrderCreatorModal';
-import { EventAuditLog } from './components/EventAuditLog';
+import { useRouter } from '../hooks/useRouter';
+import { useSocketKDS } from '../hooks/useSocketKDS';
+import { AuthProvider, useAuth } from '../context/AuthContext';
+import { Sidebar } from '../components/Sidebar';
+import { Header } from '../components/Header';
+import { OrderCreatorModal } from './OrderCreatorModal.test'; // Isolated Test Modal
+import { EventAuditLog } from '../components/EventAuditLog';
 
-import { LoginView } from './views/LoginView';
-import { DashboardView } from './views/DashboardView';
-import { OverviewBoardView } from './views/OverviewBoardView';
-import { StationBoardView } from './views/StationBoardView';
-import { OrdersView } from './views/OrdersView';
-import { StaffManagerView } from './views/StaffManagerView';
-import { ReportsView } from './views/ReportsView';
-import { AlertsView } from './views/AlertsView';
-import { SettingsView } from './views/SettingsView';
-import { HelpView } from './views/HelpView';
+import { LoginView } from '../views/LoginView';
+import { DashboardView } from '../views/DashboardView';
+import { OverviewBoardView } from './OverviewBoardView.test'; // Isolated Test Overview
+import { StationBoardView } from './StationBoardView.test'; // Isolated Test Station Board
+import { OrdersView } from '../views/OrdersView';
+import { StaffManagerView } from '../views/StaffManagerView';
+import { ReportsView } from '../views/ReportsView';
+import { AlertsView } from '../views/AlertsView';
+import { SettingsView } from '../views/SettingsView';
+import { HelpView } from '../views/HelpView';
 import { Lock, ShieldAlert } from 'lucide-react';
 
 function AppContent() {
   const { currentPath, navigate } = useRouter();
-  const { user, hasStationAccess, isPathAllowed } = useAuth();
+  const { user, isPathAllowed } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [isAuditLogOpen, setIsAuditLogOpen] = useState<boolean>(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
@@ -57,8 +57,6 @@ function AppContent() {
     connectionStatus,
     stationNetworks,
     onlineUserIds,
-    printKotEnabled,
-    togglePrintKot,
     createOrder,
     transitionOrder,
     toggleStationNetwork,
@@ -91,7 +89,6 @@ function AppContent() {
     }
   }, [user, currentPath, navigate, isPathAllowed]);
 
-  // If user is not authenticated, show Login Screen
   if (!user) {
     return <LoginView />;
   }
@@ -103,67 +100,67 @@ function AppContent() {
       case '/':
       case '/dashboard':
         return {
-          title: 'Dashboard',
+          title: 'Dashboard (Test Env)',
           subtitle: 'Real-time overview of kitchen operations',
         };
       case '/all-stations':
         return {
-          title: 'All Stations Matrix',
+          title: 'All Stations Matrix (Test Env)',
           subtitle: 'Simultaneous overview of all 5 kitchen work lines',
         };
       case '/intake':
         return {
-          title: 'Order Intake Board',
+          title: 'Order Intake Board (Test Env)',
           subtitle: 'New orders placed from POS and manager dashboard',
         };
       case '/prep':
         return {
-          title: 'Prep Line Display Board',
+          title: 'Prep Line Display Board (Test Env)',
           subtitle: 'Food preparation, vegetable chopping, and sauce mixing queue',
         };
       case '/grill':
         return {
-          title: 'Grill & Cooking Display Board',
+          title: 'Grill & Cooking Display Board (Test Env)',
           subtitle: 'Hot cooking line, searing, frying, and oven roasting queue',
         };
       case '/assembly':
         return {
-          title: 'Plate & Assembly Board',
+          title: 'Plate & Assembly Board (Test Env)',
           subtitle: 'Plating, garnishing, packaging, and tray loading queue',
         };
       case '/expedite':
         return {
-          title: 'Expedite & Pass Display Board',
+          title: 'Expedite & Pass Display Board (Test Env)',
           subtitle: 'Final order inspection and customer server pickup queue',
         };
       case '/orders':
         return {
-          title: 'Master Orders List',
+          title: 'Master Orders List (Test Env)',
           subtitle: 'Complete kitchen order history and active state tracking',
         };
       case '/staff':
         return {
-          title: 'Staff Management & Station RBAC',
+          title: 'Staff Management (Test Env)',
           subtitle: 'Manage kitchen staff credentials and station permissions',
         };
       case '/reports':
         return {
-          title: 'Kitchen Reports & Analytics',
+          title: 'Kitchen Reports (Test Env)',
           subtitle: 'Throughput metrics, prep times, and station performance',
         };
       case '/alerts':
         return {
-          title: 'System Alerts & Log',
+          title: 'System Alerts (Test Env)',
           subtitle: 'Monotonic sequence audit stream and reconnect logs',
         };
       case '/settings':
         return {
-          title: 'System Settings',
-          subtitle: 'KDS options, WebSocket parameters, and monorepo settings',
+          title: 'System Settings (Test Env)',
+          subtitle: 'KDS options, WebSocket parameters, and settings',
         };
       default:
         return {
-          title: 'Dashboard',
+          title: 'Dashboard (Test Env)',
           subtitle: 'Real-time overview of kitchen operations',
         };
     }
@@ -172,7 +169,6 @@ function AppContent() {
   const headerMeta = getHeaderMeta();
 
   const renderCurrentView = () => {
-    // RBAC Route Guard Screen check
     if (!isPathAllowed(currentPath)) {
       return (
         <div className="bg-rose-50 border border-dashed border-rose-300 rounded-2xl p-16 text-center space-y-4 shadow-sm flex flex-col items-center max-w-2xl mx-auto my-8">
@@ -181,22 +177,8 @@ function AppContent() {
           </div>
           <h3 className="text-lg font-bold text-rose-900">Restricted Route Access</h3>
           <p className="text-xs text-rose-600 max-w-md mx-auto">
-            Your account (<strong>@{user.username}</strong>) with role <strong>{user.role}</strong> does not have permission to access <strong>{headerMeta.title}</strong>.
+            Your role permissions do not authorize access to this section. Please navigate back to your workspace.
           </p>
-          <button
-            onClick={() => {
-              if (user.role === 'RECEPTIONIST') {
-                navigate('/intake');
-              } else if (user.role === 'STAFF' && user.assignedStations.length > 0) {
-                navigate(`/${user.assignedStations[0]}`);
-              } else {
-                navigate('/dashboard');
-              }
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow transition-colors"
-          >
-            Return to Default Station
-          </button>
         </div>
       );
     }
@@ -216,8 +198,6 @@ function AppContent() {
             onTransitionOrder={transitionOrder}
             onOpenCreateModal={() => setIsCreateModalOpen(true)}
             onNavigate={navigate}
-            printKotEnabled={printKotEnabled}
-            onTogglePrintKot={togglePrintKot}
           />
         );
 
@@ -280,8 +260,6 @@ function AppContent() {
             onTransitionOrder={transitionOrder}
             onOpenCreateModal={() => setIsCreateModalOpen(true)}
             onNavigate={navigate}
-            printKotEnabled={printKotEnabled}
-            onTogglePrintKot={togglePrintKot}
           />
         );
     }

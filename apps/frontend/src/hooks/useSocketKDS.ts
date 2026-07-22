@@ -10,6 +10,7 @@ import {
 } from '@ticketflow/types';
 import { kitchenAudio } from '../utils/audio';
 import { User } from '../context/AuthContext';
+import { printKot } from '../utils/kot';
 
 const SOCKET_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:4000';
 const KITCHEN_ID = 'kitchen-main';
@@ -54,17 +55,20 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
   const [stationNetworks, setStationNetworks] = useState<StationNetworkMap>(getInitialStationNetworks);
   const [reconnectedCount, setReconnectedCount] = useState<number>(0);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+  const [printKotEnabled, setPrintKotEnabled] = useState<boolean>(false);
 
   const socketRef = useRef<Socket | null>(null);
   const liveBufferRef = useRef<KitchenEvent[]>([]);
   const lastSeqRef = useRef<number>(0);
   const statusRef = useRef<'CONNECTING' | 'ONLINE' | 'SYNCING' | 'DISCONNECTED'>('CONNECTING');
   const stationNetworksRef = useRef<StationNetworkMap>(DEFAULT_STATION_NETWORKS);
+  const printKotEnabledRef = useRef<boolean>(false);
 
   // Sync refs with state
   lastSeqRef.current = lastProcessedSequence;
   statusRef.current = connectionStatus;
   stationNetworksRef.current = stationNetworks;
+  printKotEnabledRef.current = printKotEnabled;
 
   // Apply single sequence event to order state projection
   const applyEventToOrders = useCallback((event: KitchenEvent) => {
@@ -167,6 +171,29 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
 
       if (event.sequenceNumber === lastSeqRef.current + 1) {
         applyEventToOrders(event);
+        
+        // Auto print KOT on new live order creation if enabled on Intake Dashboard
+        if (
+          event.type === 'ORDER_CREATED' &&
+          activeStationId === 'intake' &&
+          printKotEnabledRef.current
+        ) {
+          const payload = event.payload;
+          const newOrder: Order = {
+            id: event.orderId,
+            kitchenId: event.kitchenId,
+            customerName: payload.customerName || 'Walk-in Customer',
+            items: payload.items || [],
+            priority: payload.priority || 'NORMAL',
+            estimatedPrepTime: payload.estimatedPrepTime || 10,
+            status: 'PLACED',
+            currentStationId: payload.stationId || 'intake',
+            assignedUserId: payload.assignedUserId || null,
+            createdAt: event.timestamp,
+            updatedAt: event.timestamp,
+          };
+          printKot(newOrder);
+        }
         return;
       }
 
@@ -216,6 +243,18 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     [applyEventToOrders, requestReplay]
   );
 
+  // Fetch print settings on mount
+  useEffect(() => {
+    fetch('http://localhost:4000/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.printKotEnabled !== undefined) {
+          setPrintKotEnabled(data.printKotEnabled);
+        }
+      })
+      .catch((err) => console.error('[Socket] Failed to fetch settings:', err));
+  }, []);
+
   // Initialize socket connection
   useEffect(() => {
     const isStationOnline = stationNetworksRef.current[activeStationId as StationId] !== false;
@@ -254,6 +293,11 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
 
     socket.on('order:transition', (event: KitchenEvent) => {
       handleIncomingEvent(event);
+    });
+
+    socket.on('settings:update', (data: { printKotEnabled: boolean }) => {
+      setPrintKotEnabled(data.printKotEnabled);
+      console.log('[KDS Engine] printKotEnabled updated via socket:', data.printKotEnabled);
     });
 
     socket.on('order:replayResponse', (response: ReplayResponsePayload) => {
@@ -397,6 +441,22 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     [requestReplay]
   );
 
+  const togglePrintKot = useCallback(async () => {
+    const newValue = !printKotEnabled;
+    setPrintKotEnabled(newValue);
+    try {
+      await fetch('http://localhost:4000/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ printKotEnabled: newValue }),
+      });
+    } catch (err) {
+      console.error('[Socket] Failed to update settings:', err);
+      // Revert if error
+      setPrintKotEnabled(!newValue);
+    }
+  }, [printKotEnabled]);
+
   return {
     orders,
     events,
@@ -405,6 +465,8 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     stationNetworks,
     onlineUserIds,
     reconnectedCount,
+    printKotEnabled,
+    togglePrintKot,
     createOrder,
     transitionOrder,
     toggleStationNetwork,

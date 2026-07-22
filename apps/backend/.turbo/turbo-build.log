@@ -4,10 +4,14 @@
 
 Environment variables loaded from .env
 Prisma schema loaded from prisma\schema.prisma
+Error: 
+EPERM: operation not permitted, rename 'C:\Users\Ansh\ticketFlow\node_modules\.prisma\client\query_engine-windows.dll.node.tmp22036' -> 'C:\Users\Ansh\ticketFlow\node_modules\.prisma\client\query_engine-windows.dll.node'
 
-✔ Generated Prisma Client (v5.22.0) to .\..\..\node_modules\@prisma\client in 178ms
 
-Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
-
-Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
-
+npm error Lifecycle script `build` failed with error:
+npm error code 1
+npm error path C:\Users\Ansh\ticketFlow\apps\backend
+npm error workspace @ticketflow/backend@1.0.0
+npm error location C:\Users\Ansh\ticketFlow\apps\backend
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c tsc && prisma generate

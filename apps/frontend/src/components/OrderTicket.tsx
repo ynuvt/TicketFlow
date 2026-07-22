@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Order, OrderStatus, StationId } from '@ticketflow/types';
 import { STATIONS } from '../types/kds';
-import { Clock, ArrowRight, CheckCircle2, User, ShieldAlert, Receipt } from 'lucide-react';
+import { Clock, ArrowRight, CheckCircle2, User, ShieldAlert, Receipt, Download } from 'lucide-react';
+import { downloadKot } from '../utils/kot';
 
 interface OrderTicketProps {
   order: Order;
@@ -111,6 +112,15 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
           <span className="font-black text-xs text-slate-900 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded">
             {kotShortId}
           </span>
+          {activeStationId === 'intake' && (
+            <button
+              onClick={() => downloadKot(order)}
+              className="p-1 rounded-md text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors ml-1"
+              title="Download KOT Receipt"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           {order.priority === 'VIP' && (

@@ -15,6 +15,7 @@ import {
   Inbox,
   ArrowRight,
   User,
+  Receipt,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -28,6 +29,8 @@ interface DashboardViewProps {
   onTransitionOrder: (orderId: string, currentStatus: OrderStatus, newStatus: OrderStatus, stationId?: StationId) => void;
   onOpenCreateModal: () => void;
   onNavigate: (path: string) => void;
+  printKotEnabled?: boolean;
+  onTogglePrintKot?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -41,6 +44,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onTransitionOrder,
   onOpenCreateModal,
   onNavigate,
+  printKotEnabled = false,
+  onTogglePrintKot,
 }) => {
   const [lastUpdatedTime, setLastUpdatedTime] = useState<string>('');
 
@@ -101,7 +106,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+          {/* Print KOT Auto-Print Control */}
+          <div className="flex items-center gap-2.5 bg-white px-4 py-2 rounded-xl border border-slate-200/80 shadow-sm select-none">
+            <Receipt className="w-3.5 h-3.5 text-blue-600" />
+            <span className="text-xs font-bold text-slate-700">Print KOT</span>
+            <button
+              onClick={onTogglePrintKot}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none ${
+                printKotEnabled ? 'bg-blue-600' : 'bg-slate-200'
+              }`}
+              aria-label="Toggle Print KOT"
+            >
+              <span
+                className="inline-block h-3 w-3 transform rounded-full bg-white transition-transform duration-200"
+                style={{ transform: printKotEnabled ? 'translateX(20px)' : 'translateX(4px)' }}
+              />
+            </button>
+          </div>
+
           <div className="flex items-center gap-1.5 text-xs text-slate-500 font-mono bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
             <Clock className="w-3.5 h-3.5 text-amber-600" />
             <span>Updated: {lastUpdatedTime || '10:24:30 AM'}</span>
