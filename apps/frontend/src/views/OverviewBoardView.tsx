@@ -149,10 +149,12 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
           const isCollectivelyOffline = isStationCollectivelyOffline(stId);
 
           const columnOrders = isSimulatedOnline
-            ? orders.filter((o) => {
-                if ((o.status as string) === 'SERVED') return false;
-                return o.currentStationId === stId;
-              })
+            ? orders
+                .filter((o) => {
+                  if ((o.status as string) === 'SERVED') return false;
+                  return o.currentStationId === stId;
+                })
+                .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
             : [];
 
           return (

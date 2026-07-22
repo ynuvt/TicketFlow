@@ -21,6 +21,9 @@ let globalSequenceCounter: number | null = null;
 
 export class OrderRepository {
   public static onlineUserIds = new Set<string>();
+  public static ioInstance: any = null;
+  public static offlineTimers = new Map<string, NodeJS.Timeout>();
+  public static originalAssignments = new Map<string, string[]>();
 
   public static resetSequenceCounter() {
     globalSequenceCounter = null;
@@ -551,6 +554,316 @@ export class OrderRepository {
       totalCustomerEtaMinutes: Math.round(totalPipelineEta),
       updatedAt: now,
     };
+  }
+
+  public async redistributeOfflineUserOrders(userId: string) {
+    const io = OrderRepository.ioInstance;
+    if (!io) return;
+
+    // Find all active, non-served orders assigned to userId
+    const activeOrders = await prisma.order.findMany({
+      where: {
+        assignedUserId: userId,
+        status: { not: 'SERVED' }
+      }
+    });
+
+    if (activeOrders.length === 0) return;
+
+    console.log(`[Network Re-routing] Cook ${userId} offline for 1 min. Redistributing ${activeOrders.length} orders...`);
+
+    // Group orders by station to route them
+    for (const order of activeOrders) {
+      const stationId = order.currentStationId;
+      const kitchenId = order.kitchenId;
+
+      await prisma.$transaction(async (tx) => {
+        // Find other cooks assigned to this station
+        const staffMembers = await tx.user.findMany({
+          where: {
+            role: 'STAFF',
+            assignedStations: {
+              has: stationId,
+            },
+            id: { not: userId }
+          },
+        });
+
+        // Filter to only online staff members
+        const activeStaff = staffMembers.filter((s: any) => OrderRepository.onlineUserIds.has(s.id));
+        if (activeStaff.length === 0) {
+          // If no other online cooks, leave it assigned to the offline cook so it's not lost
+          return;
+        }
+
+        // Calculate workloads and find the best candidate
+        const candidateWorkloads = [];
+        for (const staff of activeStaff) {
+          const { predictedWorkload, avgTime } = await this.calculateStaffPredictedWorkload(
+            tx,
+            staff.id,
+            stationId,
+            kitchenId
+          );
+          const canAccept = (predictedWorkload + avgTime) <= 20;
+          candidateWorkloads.push({
+            staffId: staff.id,
+            workload: predictedWorkload,
+            avgTime,
+            canAccept,
+          });
+        }
+
+        let newStaffId = null;
+        const availableCandidates = candidateWorkloads.filter((c) => c.canAccept);
+        if (availableCandidates.length > 0) {
+          availableCandidates.sort((a, b) => a.workload - b.workload || a.avgTime - b.avgTime);
+          newStaffId = availableCandidates[0].staffId;
+        } else {
+          candidateWorkloads.sort((a, b) => a.workload - b.workload || a.avgTime - b.avgTime);
+          newStaffId = candidateWorkloads[0].staffId;
+        }
+
+        if (newStaffId) {
+          // Reassign order
+          await tx.order.update({
+            where: { id: order.id },
+            data: {
+              assignedUserId: newStaffId,
+              updatedAt: new Date(),
+            }
+          });
+
+          // Create an event for the sequence number update
+          const seq = await this.getNextSequenceNumber(tx, kitchenId);
+          const event = await tx.orderEvent.create({
+            data: {
+              kitchenId,
+              orderId: order.id,
+              type: 'ORDER_TRANSITIONED',
+              sequenceNumber: seq,
+              payload: JSON.stringify({
+                orderId: order.id,
+                stationId,
+                newStatus: order.status,
+                assignedUserId: newStaffId,
+              }),
+            }
+          });
+
+          const clientEvent = {
+            sequenceNumber: Number(event.sequenceNumber),
+            eventId: event.id,
+            kitchenId: event.kitchenId,
+            orderId: event.orderId,
+            type: event.type as any,
+            payload: typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload,
+            timestamp: new Date(event.createdAt).getTime(),
+          };
+
+          const room = `kitchen:${kitchenId}`;
+          io.to(room).emit('order:transition', clientEvent);
+          console.log(`[Network Re-routing] Order ${order.id} reassigned from ${userId} to ${newStaffId}`);
+        }
+      });
+    }
+  }
+
+  public async handleUserReconnect(userId: string) {
+    const io = OrderRepository.ioInstance;
+    if (!io) return;
+
+    // Clear any offline timer
+    const timer = OrderRepository.offlineTimers.get(userId);
+    if (timer) {
+      clearTimeout(timer);
+      OrderRepository.offlineTimers.delete(userId);
+    }
+
+    // Find the user to get their assigned stations
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return;
+
+    const kitchenId = 'kitchen-main';
+
+    // Check if this user's stations were collectively offline before they connected!
+    for (const stationId of user.assignedStations) {
+      if (stationId === 'intake') continue;
+
+      // Find other cooks assigned to stationId
+      const otherCooks = await prisma.user.findMany({
+        where: {
+          role: 'STAFF',
+          assignedStations: { has: stationId },
+          id: { not: userId }
+        }
+      });
+
+      const otherOnlineCooks = otherCooks.filter((c: any) => OrderRepository.onlineUserIds.has(c.id));
+      if (otherOnlineCooks.length === 0) {
+        // Yes! The station was collectively offline. Give ALL active orders at this station to this cook!
+        console.log(`[Network Reconnect] Station ${stationId} was collectively offline. Assigning all active orders to ${userId}...`);
+        
+        const stationOrders = await prisma.order.findMany({
+          where: {
+            currentStationId: stationId,
+            status: { not: 'SERVED' }
+          }
+        });
+
+        for (const order of stationOrders) {
+          // Reassign to user
+          await prisma.$transaction(async (tx) => {
+            await tx.order.update({
+              where: { id: order.id },
+              data: {
+                assignedUserId: userId,
+                updatedAt: new Date()
+              }
+            });
+
+            const seq = await this.getNextSequenceNumber(tx, kitchenId);
+            const event = await tx.orderEvent.create({
+              data: {
+                kitchenId,
+                orderId: order.id,
+                type: 'ORDER_TRANSITIONED',
+                sequenceNumber: seq,
+                payload: JSON.stringify({
+                  orderId: order.id,
+                  stationId,
+                  newStatus: order.status,
+                  assignedUserId: userId,
+                })
+              }
+            });
+
+            const clientEvent = {
+              sequenceNumber: Number(event.sequenceNumber),
+              eventId: event.id,
+              kitchenId: event.kitchenId,
+              orderId: event.orderId,
+              type: event.type as any,
+              payload: typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload,
+              timestamp: new Date(event.createdAt).getTime()
+            };
+
+            io.to(`kitchen:${kitchenId}`).emit('order:transition', clientEvent);
+          });
+        }
+      }
+    }
+
+    // Check if this user had any original assignments that were reassigned away from them
+    const originalOrders = OrderRepository.originalAssignments.get(userId);
+    if (originalOrders && originalOrders.length > 0) {
+      console.log(`[Network Reconnect] User ${userId} reconnected. Returning original assignments: ${originalOrders.join(', ')}`);
+      
+      for (const orderId of originalOrders) {
+        // Check if the order is still at user's station and is active (not served)
+        const order = await prisma.order.findUnique({ where: { id: orderId } });
+        if (order && order.status !== 'SERVED' && user.assignedStations.includes(order.currentStationId)) {
+          // If the order has been reassigned to someone else, assign it back to userId!
+          if (order.assignedUserId !== userId) {
+            await prisma.$transaction(async (tx) => {
+              await tx.order.update({
+                where: { id: orderId },
+                data: {
+                  assignedUserId: userId,
+                  updatedAt: new Date()
+                }
+              });
+
+              const seq = await this.getNextSequenceNumber(tx, kitchenId);
+              const event = await tx.orderEvent.create({
+                data: {
+                  kitchenId,
+                  orderId: orderId,
+                  type: 'ORDER_TRANSITIONED',
+                  sequenceNumber: seq,
+                  payload: JSON.stringify({
+                    orderId: orderId,
+                    stationId: order.currentStationId,
+                    newStatus: order.status,
+                    assignedUserId: userId,
+                  })
+                }
+              });
+
+              const clientEvent = {
+                sequenceNumber: Number(event.sequenceNumber),
+                eventId: event.id,
+                kitchenId: event.kitchenId,
+                orderId: event.orderId,
+                type: event.type as any,
+                payload: typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload,
+                timestamp: new Date(event.createdAt).getTime()
+              };
+
+              io.to(`kitchen:${kitchenId}`).emit('order:transition', clientEvent);
+              console.log(`[Network Reconnect] Restored original order ${orderId} assignment to ${userId}`);
+            });
+          }
+        }
+      }
+
+      OrderRepository.originalAssignments.delete(userId);
+    }
+
+    // Workload balancing: pull latest order(s) from other online cooks at their station
+    if (user.assignedStations.length > 0) {
+      const mainStation = user.assignedStations[0];
+      const userWorkloadInfo = await this.calculateStaffPredictedWorkload(prisma, userId, mainStation, kitchenId);
+      if (userWorkloadInfo.predictedWorkload < 5) {
+        const otherActiveOrders = await prisma.order.findMany({
+          where: {
+            currentStationId: mainStation,
+            status: { not: 'SERVED' },
+            assignedUserId: { not: userId },
+            NOT: {
+              assignedUserId: null
+            }
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        if (otherActiveOrders.length > 0) {
+          const latestOrder = otherActiveOrders[0];
+          console.log(`[Network Reconnect] Load balancing: Moving latest order ${latestOrder.id} to reconnected cook ${userId}`);
+          await prisma.$transaction(async (tx) => {
+            await tx.order.update({
+              where: { id: latestOrder.id },
+              data: { assignedUserId: userId, updatedAt: new Date() }
+            });
+            const seq = await this.getNextSequenceNumber(tx, kitchenId);
+            const event = await tx.orderEvent.create({
+              data: {
+                kitchenId,
+                orderId: latestOrder.id,
+                type: 'ORDER_TRANSITIONED',
+                sequenceNumber: seq,
+                payload: JSON.stringify({
+                  orderId: latestOrder.id,
+                  stationId: latestOrder.currentStationId,
+                  newStatus: latestOrder.status,
+                  assignedUserId: userId
+                })
+              }
+            });
+            const clientEvent = {
+              sequenceNumber: Number(event.sequenceNumber),
+              eventId: event.id,
+              kitchenId: event.kitchenId,
+              orderId: event.orderId,
+              type: event.type as any,
+              payload: typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload,
+              timestamp: new Date(event.createdAt).getTime()
+            };
+            io.to(`kitchen:${kitchenId}`).emit('order:transition', clientEvent);
+          });
+        }
+      }
+    }
   }
 }
 

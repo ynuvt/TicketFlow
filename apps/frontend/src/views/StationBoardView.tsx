@@ -71,34 +71,38 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
   };
 
   // Filter orders at this station S that are currently in the waiting list (assignedUserId === null)
-  const waitingOrders = orders.filter((o) => {
-    if (o.status === 'SERVED') return false;
-    return o.currentStationId === stationId && !o.assignedUserId;
-  });
+  const waitingOrders = orders
+    .filter((o) => {
+      if (o.status === 'SERVED') return false;
+      return o.currentStationId === stationId && !o.assignedUserId;
+    })
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   // Filter active orders at this station S (assignedUserId !== null)
-  const activeOrders = orders.filter((o) => {
-    if ((o.status as string) === 'SERVED') return false;
-    
-    // Intake station (Receptionist) sees all active kitchen orders to track ETAs and completion
-    if (stationId === 'intake') {
-      return (o.status as string) !== 'SERVED';
-    }
+  const activeOrders = orders
+    .filter((o) => {
+      if ((o.status as string) === 'SERVED') return false;
+      
+      // Intake station (Receptionist) sees all active kitchen orders to track ETAs and completion
+      if (stationId === 'intake') {
+        return (o.status as string) !== 'SERVED';
+      }
 
-    if (o.currentStationId !== stationId) return false;
+      if (o.currentStationId !== stationId) return false;
 
-    if (user?.role === 'STAFF') {
-      // Staff sees orders assigned to their user ID, username, or deterministic user-ID
-      return (
-        o.assignedUserId === user.id ||
-        o.assignedUserId === user.username ||
-        o.assignedUserId === `user-${user.username}`
-      );
-    } else {
-      // Manager/Receptionist sees all assigned orders at S
-      return !!o.assignedUserId;
-    }
-  });
+      if (user?.role === 'STAFF') {
+        // Staff sees orders assigned to their user ID, username, or deterministic user-ID
+        return (
+          o.assignedUserId === user.id ||
+          o.assignedUserId === user.username ||
+          o.assignedUserId === `user-${user.username}`
+        );
+      } else {
+        // Manager/Receptionist sees all assigned orders at S
+        return !!o.assignedUserId;
+      }
+    })
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   const calculateOrderEstimatedServingTime = (order: Order, summaries: any) => {
     const stationsOrder = ['prep', 'grill', 'assembly', 'expedite'];

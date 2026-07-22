@@ -95,7 +95,7 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
       <div className="text-center space-y-0.5">
         <p className="text-xs font-black tracking-widest text-slate-600 uppercase">KOT Reciept</p>
         <div className="border-t border-dashed border-slate-400 my-1" />
-        <h2 className="text-sm font-black tracking-wider text-slate-900 uppercase">Mc Wesee Pizzas</h2>
+        <h2 className="text-sm font-black tracking-wider text-slate-900 uppercase">The Wesee Pizzas</h2>
         <p className="text-[10px] text-slate-500 leading-tight">
           Vijay Nagar, Near by C21 Mall, Indore, Madhya Pradesh, India.
           <br />

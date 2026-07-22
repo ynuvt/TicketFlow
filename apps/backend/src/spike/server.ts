@@ -24,6 +24,8 @@ const io = new Server(httpServer, {
   },
 });
 
+OrderRepository.ioInstance = io;
+
 app.use(express.json());
 
 // Enable CORS manually for fetch API
@@ -327,6 +329,8 @@ io.on('connection', (socket: Socket) => {
       OrderRepository.onlineUserIds.add(userId);
       io.emit('user:connection_change', { userId, online: true });
       console.log(`[Socket] User ${userId} joined online.`);
+      // Reconnection handler: restore previous assignments & balance workload
+      orderRepository.handleUserReconnect(userId);
     }
 
     socket.join(room);
@@ -340,6 +344,29 @@ io.on('connection', (socket: Socket) => {
       OrderRepository.onlineUserIds.delete(userId);
       io.emit('user:connection_change', { userId, online: false });
       console.log(`[Socket] User ${userId} disconnected. User offline.`);
+
+      // Offline timer logic: reassign active orders after 1 minute if they remain offline
+      prisma.order.findMany({
+        where: {
+          assignedUserId: userId,
+          status: { not: 'SERVED' }
+        }
+      }).then((activeOrders) => {
+        if (activeOrders.length > 0) {
+          const orderIds = activeOrders.map(o => o.id);
+          OrderRepository.originalAssignments.set(userId, orderIds);
+          
+          // Clear existing timer if any
+          const existingTimer = OrderRepository.offlineTimers.get(userId);
+          if (existingTimer) clearTimeout(existingTimer);
+
+          const timer = setTimeout(() => {
+            orderRepository.redistributeOfflineUserOrders(userId);
+          }, 60000); // 1 minute
+          OrderRepository.offlineTimers.set(userId, timer);
+          console.log(`[Socket] Scheduled 1-minute offline redistribution timer for user ${userId} for orders: ${orderIds.join(', ')}`);
+        }
+      }).catch(err => console.error('[Socket] Failed to find active orders for offline cook:', err));
     }
     console.log(`[Socket] Client disconnected: ${socket.id}`);
   });
