@@ -25,6 +25,8 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
   const { user, authFetch } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [customerEta, setCustomerEta] = useState<number | null>(null);
+  const [stationSummaries, setStationSummaries] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const stationConfig = STATIONS[stationId] || STATIONS.intake;
 
   // Fetch live Customer ETA metrics for Intake board
@@ -36,6 +38,9 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
           .then((data) => {
             if (data.totalCustomerEtaMinutes !== undefined) {
               setCustomerEta(data.totalCustomerEtaMinutes);
+            }
+            if (data.stationSummaries) {
+              setStationSummaries(data.stationSummaries);
             }
           })
           .catch((err) => console.error('[StationBoard] ETA fetch failed:', err));
@@ -73,11 +78,11 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
 
   // Filter active orders at this station S (assignedUserId !== null)
   const activeOrders = orders.filter((o) => {
-    if (o.status === 'SERVED') return false;
+    if ((o.status as string) === 'SERVED') return false;
     
-    // Intake station orders are never assigned (they are created by reception and sent forward)
+    // Intake station (Receptionist) sees all active kitchen orders to track ETAs and completion
     if (stationId === 'intake') {
-      return o.currentStationId === 'intake';
+      return (o.status as string) !== 'SERVED';
     }
 
     if (o.currentStationId !== stationId) return false;
@@ -95,8 +100,117 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
     }
   });
 
+  const calculateOrderEstimatedServingTime = (order: Order, summaries: any) => {
+    const stationsOrder = ['prep', 'grill', 'assembly', 'expedite'];
+    const currentIdx = stationsOrder.indexOf(order.currentStationId || 'prep');
+    if (currentIdx === -1) return 0;
+
+    const defaultPrepTimes: Record<string, number> = {
+      prep: 5,
+      grill: 6,
+      assembly: 5,
+      expedite: 4
+    };
+
+    // 1. Sum up default prep times for all stations starting from the current station
+    let totalEst = 0;
+    for (let i = currentIdx; i < stationsOrder.length; i++) {
+      const stId = stationsOrder[i];
+      totalEst += defaultPrepTimes[stId] || 5;
+    }
+
+    // 2. Subtract the elapsed time that the order has spent at its current station
+    const elapsedMinutes = (Date.now() - new Date(order.updatedAt).getTime()) / 60000;
+    
+    // We cap subtraction at current station's avg prep time to avoid negative estimates
+    const currentStationAvg = defaultPrepTimes[order.currentStationId || 'prep'] || 5;
+    const currentStationProgress = Math.min(elapsedMinutes, currentStationAvg);
+    
+    totalEst = totalEst - currentStationProgress;
+
+    // 3. Add queue delays from summaries if there are waiting orders
+    for (let i = currentIdx; i < stationsOrder.length; i++) {
+      const stId = stationsOrder[i];
+      const summary = summaries?.[stId];
+      if (summary && summary.waitingCount > 0) {
+        totalEst += (summary.waitingCount * 2);
+      }
+    }
+
+    return Math.max(Math.round(totalEst), 1);
+  };
+
+  const displayedOrders = activeOrders.filter((o) => {
+    if (stationId !== 'intake' || !searchQuery) return true;
+    const term = searchQuery.toLowerCase().trim();
+    const kotId = `#${o.id.slice(-6).toUpperCase()}`;
+    const customer = o.customerName.toLowerCase();
+    return kotId.includes(term) || o.id.toLowerCase().includes(term) || customer.includes(term);
+  });
+
   return (
     <div className="space-y-6 font-sans">
+      {/* Intake Dashboard Metrics Panel */}
+      {stationId === 'intake' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm font-mono text-slate-900">
+          {/* Total Orders Card */}
+          <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl flex flex-col justify-between">
+            <div>
+              <p className="text-xs font-black text-slate-500 uppercase tracking-wider">Total Active Orders</p>
+              <h3 className="text-4xl font-black text-slate-900 mt-2">
+                {orders.filter(o => (o.status as string) !== 'SERVED').length} <span className="text-xs font-medium text-slate-450">KOTs</span>
+              </h3>
+            </div>
+            <div className="text-[10px] text-slate-500 mt-4 leading-normal font-sans">
+              Live tickets currently being prepared or processed across the kitchen pipeline.
+            </div>
+          </div>
+
+          {/* Station Backlog Columns */}
+          <div className="lg:col-span-2 space-y-4">
+            <p className="text-xs font-black text-slate-500 uppercase tracking-wider">Kitchen Stations Status</p>
+            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-200 font-black text-slate-700">
+                    <th className="p-3">STATION</th>
+                    <th className="p-3 text-center">WAITING</th>
+                    <th className="p-3 text-center">ACTIVE</th>
+                    <th className="p-3 text-center">AVG. PREP</th>
+                    <th className="p-3 text-right">STATION ETA</th>
+                  </tr>
+                </thead>
+                <tbody className="font-bold text-slate-800">
+                  {[
+                    { id: 'prep', name: 'Prep Line', avg: '5m' },
+                    { id: 'grill', name: 'Grill & Cook', avg: '6m' },
+                    { id: 'assembly', name: 'Plate & Assembly', avg: '5m' },
+                    { id: 'expedite', name: 'Expedite & Pass', avg: '4m' }
+                  ].map((st) => {
+                    const summary = stationSummaries?.[st.id];
+                    return (
+                      <tr key={st.id} className="border-b border-slate-200 hover:bg-slate-50/50">
+                        <td className="p-3 font-black text-slate-900">{st.name}</td>
+                        <td className="p-3 text-center font-mono text-amber-700">
+                          {summary ? summary.waitingCount : 0}
+                        </td>
+                        <td className="p-3 text-center font-mono text-blue-700">
+                          {summary ? summary.activeCount : 0}
+                        </td>
+                        <td className="p-3 text-center text-slate-500">{st.avg}</td>
+                        <td className="p-3 text-right font-mono font-black text-slate-900">
+                          {summary ? summary.shortestTimeline : 5} mins
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Station Control Banner */}
       <div className="bg-white border border-slate-200/80 rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-3.5">
@@ -115,11 +229,14 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
         </div>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
-          {stationId === 'intake' && customerEta !== null && (
-            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200/90 px-3.5 py-2 rounded-xl text-amber-800 text-xs font-bold font-mono shadow-2xs">
-              <Clock className="w-4 h-4 text-amber-600" />
-              <span>Est. Preparation Time: <strong className="text-amber-950 text-xs font-extrabold ml-1">{customerEta} mins</strong></span>
-            </div>
+          {stationId === 'intake' && (
+            <input
+              type="text"
+              placeholder="Search KOT / Customer..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-900 w-48 transition-all"
+            />
           )}
 
           {stationId === 'intake' && onOpenCreateModal && (
@@ -223,7 +340,7 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
           )}
 
           {/* Active queue displays */}
-          {activeOrders.length === 0 ? (
+          {displayedOrders.length === 0 ? (
             <div className="bg-white border border-slate-200/80 rounded-2xl p-16 text-center space-y-3 shadow-sm">
               <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center">
                 <CheckCircle2 className="w-7 h-7" />
@@ -237,16 +354,25 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {activeOrders.map((order) => (
-                <div key={order.id} className="relative group">
-                  <OrderTicket
-                    order={order}
-                    onTransitionOrder={onTransitionOrder}
-                    activeStationId={stationId}
-                    assignedStaffName={getAssignedUserName(order.assignedUserId)}
-                  />
-                </div>
-              ))}
+              {displayedOrders.map((order) => {
+                const orderEta = calculateOrderEstimatedServingTime(order, stationSummaries);
+                return (
+                  <div key={order.id} className="relative group">
+                    <OrderTicket
+                      order={order}
+                      onTransitionOrder={onTransitionOrder}
+                      activeStationId={stationId}
+                      assignedStaffName={getAssignedUserName(order.assignedUserId)}
+                    />
+                    {stationId === 'intake' && (
+                      <div className="mt-2 bg-slate-900 border border-slate-900 text-white p-2.5 rounded-xl text-[10px] font-mono font-black flex items-center justify-between shadow-sm">
+                        <span>EST. TIME TO SERVE:</span>
+                        <span className="text-amber-300 font-extrabold text-xs">{orderEta} mins</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

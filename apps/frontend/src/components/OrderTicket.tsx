@@ -95,7 +95,7 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
       <div className="text-center space-y-0.5">
         <p className="text-xs font-black tracking-widest text-slate-600 uppercase">KOT Reciept</p>
         <div className="border-t border-dashed border-slate-400 my-1" />
-        <h2 className="text-sm font-black tracking-wider text-slate-900 uppercase">FAMILY RESTAURANT</h2>
+        <h2 className="text-sm font-black tracking-wider text-slate-900 uppercase">The Wesee Cafe</h2>
         <p className="text-[10px] text-slate-500 leading-tight">
           Vijay Nagar, Near by C21 Mall, Indore, Madhya Pradesh, India.
           <br />
@@ -148,6 +148,13 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
         ) : null}
       </div>
 
+      {/* Highlighted Current KDS Station Status (Intake Receptionist only) */}
+      {activeStationId === 'intake' && (
+        <div className="bg-slate-900 text-amber-300 font-mono font-black text-center text-[10px] py-1 px-3 rounded-lg uppercase tracking-wider shadow-xs">
+          Current Station: {currentStationConfig.name}
+        </div>
+      )}
+
       {/* Items Table Header & List */}
       <div className="space-y-2 flex-1">
         <div className="grid grid-cols-12 text-[11px] font-black text-slate-900 border-b border-dashed border-slate-400 pb-1 uppercase">
@@ -179,7 +186,7 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
         <p className="text-xs font-black text-slate-700 tracking-wider">Thank You!!!</p>
         <div className="border-t border-dashed border-slate-400 pt-1" />
 
-        {action && (
+        {action && activeStationId !== 'intake' && (
           <button
             onClick={() => onTransitionOrder(order.id, order.status, action.targetStatus, action.targetStation)}
             className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-black text-xs shadow-md hover:shadow-lg flex items-center justify-center gap-2 transition-all font-mono active:scale-95 cursor-pointer"
