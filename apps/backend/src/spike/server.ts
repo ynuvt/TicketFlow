@@ -12,20 +12,24 @@ import {
 import { validateStateTransition } from '../domain/stateMachine';
 import { generateUsers } from 'indseed';
 import { orderRepository } from '../repositories/order.repository';
+import { userRepository } from '../repositories/user.repository';
 
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: '*' },
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  },
 });
 
 app.use(express.json());
 
-// Enable CORS for REST requests
+// Enable CORS manually for fetch API
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
     return;
@@ -35,6 +39,77 @@ app.use((req, res, next) => {
 
 // Default Kitchen Instance
 const DEFAULT_KITCHEN_ID = 'kitchen-main';
+
+// Ensure Default Admin User exists on boot
+userRepository.ensureAdminUser();
+
+// Auth Endpoints
+app.post('/api/auth/login', async (req: Request, res: Response) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    res.status(400).json({ error: 'Username and password required' });
+    return;
+  }
+
+  try {
+    const user = await userRepository.findByUsername(username);
+    if (!user || user.password !== password) {
+      res.status(401).json({ error: 'Invalid username or password' });
+      return;
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        fullName: user.fullName,
+        role: user.role,
+        assignedStations: user.assignedStations,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Staff User Management Endpoints
+app.get('/api/users', async (req: Request, res: Response) => {
+  try {
+    const users = await userRepository.getAllUsers();
+    res.json({ users });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users', async (req: Request, res: Response) => {
+  try {
+    const newUser = await userRepository.createUser(req.body);
+    res.json({ user: newUser });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/users/:id', async (req: Request, res: Response) => {
+  try {
+    const userId = (req.params.id as string);
+    const updated = await userRepository.updateUser({ id: userId, ...req.body });
+    res.json({ user: updated });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/users/:id', async (req: Request, res: Response) => {
+  try {
+    const userId = (req.params.id as string);
+    await userRepository.deleteUser(userId);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
 
 // REST API Endpoints
 app.get('/api/events', (req: Request, res: Response) => {

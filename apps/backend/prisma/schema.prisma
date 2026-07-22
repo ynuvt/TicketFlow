@@ -8,6 +8,11 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum UserRole {
+  MANAGER
+  STAFF
+}
+
 enum OrderStatus {
   PLACED
   PREPARING
@@ -19,6 +24,17 @@ enum OrderPriority {
   NORMAL
   HIGH
   VIP
+}
+
+model User {
+  id               String   @id @default(uuid())
+  username         String   @unique
+  password         String
+  fullName         String
+  role             UserRole @default(STAFF)
+  assignedStations String[] @default(["intake", "prep", "grill", "assembly", "expedite"])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model Kitchen {

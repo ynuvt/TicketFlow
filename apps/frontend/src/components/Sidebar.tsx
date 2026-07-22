@@ -13,7 +13,10 @@ import {
   Settings,
   Ticket,
   X,
+  Users,
+  LogOut,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface SidebarProps {
   currentPath: string;
@@ -30,15 +33,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile = false,
   onCloseMobile,
 }) => {
+  const { user, logout, hasStationAccess } = useAuth();
+
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'All Stations', path: '/all-stations', icon: LayoutGrid },
-    { name: 'Order Intake', path: '/intake', icon: ClipboardList },
-    { name: 'Prep Line', path: '/prep', icon: UtensilsCrossed },
-    { name: 'Grill & Cook', path: '/grill', icon: Flame },
-    { name: 'Plate & Assembly', path: '/assembly', icon: PackageCheck },
-    { name: 'Expedite & Pass', path: '/expedite', icon: ConciergeBell },
+    { name: 'Order Intake', path: '/intake', icon: ClipboardList, stationId: 'intake' },
+    { name: 'Prep Line', path: '/prep', icon: UtensilsCrossed, stationId: 'prep' },
+    { name: 'Grill & Cook', path: '/grill', icon: Flame, stationId: 'grill' },
+    { name: 'Plate & Assembly', path: '/assembly', icon: PackageCheck, stationId: 'assembly' },
+    { name: 'Expedite & Pass', path: '/expedite', icon: ConciergeBell, stationId: 'expedite' },
     { name: 'Orders', path: '/orders', icon: Receipt },
+    { name: 'Staff Management', path: '/staff', icon: Users, managerOnly: true },
     { name: 'Reports', path: '/reports', icon: BarChart3 },
     { name: 'Alerts', path: '/alerts', icon: Bell },
     { name: 'Settings', path: '/settings', icon: Settings },
@@ -50,6 +56,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
     return currentPath === itemPath;
   };
+
+  const filteredNavItems = navItems.filter((item) => {
+    if (item.managerOnly && user?.role !== 'MANAGER') return false;
+    if (item.stationId && !hasStationAccess(item.stationId)) return false;
+    return true;
+  });
 
   const content = (
     <div className="h-full flex flex-col justify-between select-none">
@@ -77,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation Items */}
         <nav className="px-3 py-2 space-y-1">
-          {navItems.map((item) => {
+          {filteredNavItems.map((item) => {
             const Icon = item.icon;
             const active = isActivePath(item.path);
 
@@ -109,17 +121,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Footer Section */}
       <div className="p-4 space-y-3">
-        {/* Network Status Card */}
-        <div className="bg-slate-50 border border-slate-200/80 p-3 rounded-2xl flex items-center justify-between text-xs">
-          <div>
-            <p className="font-semibold text-slate-700 text-[11px]">Network Status</p>
-            <p className="text-slate-500 text-[11px]">All Systems</p>
+        {/* User Session Info & Logout */}
+        {user && (
+          <div className="bg-slate-50 border border-slate-200/80 p-3 rounded-2xl flex items-center justify-between">
+            <div className="min-w-0 pr-2">
+              <p className="font-bold text-slate-900 text-xs truncate">{user.fullName}</p>
+              <p className="text-[10px] font-mono text-slate-500 truncate">@{user.username} ({user.role})</p>
+            </div>
+            <button
+              onClick={logout}
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0"
+              title="Logout User Session"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
-          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200/60 font-semibold text-[10px]">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Online</span>
-          </div>
-        </div>
+        )}
 
         {/* Copyright */}
         <div className="text-[11px] text-slate-400 px-1 font-mono">

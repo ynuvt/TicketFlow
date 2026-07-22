@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Bell, Volume2, VolumeX, Activity, ChevronDown, Menu } from 'lucide-react';
+import { RefreshCw, Bell, Volume2, VolumeX, Activity, Menu, LogOut, Shield } from 'lucide-react';
 import { kitchenAudio } from '../utils/audio';
+import { useAuth } from '../context/AuthContext';
 
 interface HeaderProps {
   title: string;
@@ -19,6 +20,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuditLog,
   onOpenMobileMenu,
 }) => {
+  const { user, logout } = useAuth();
   const [isMuted, setIsMuted] = useState<boolean>(kitchenAudio.getMuted());
   const [currentTime, setCurrentTime] = useState<string>('');
 
@@ -88,13 +90,25 @@ export const Header: React.FC<HeaderProps> = ({
           <RefreshCw className="w-4 h-4" />
         </button>
 
-        {/* Admin User Profile Badge */}
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-          <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm">
-            AM
+        {/* User Profile & Logout */}
+        {user && (
+          <div className="flex items-center gap-2.5 pl-2.5 border-l border-slate-200">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 font-extrabold text-xs flex items-center justify-center shadow-sm">
+              {user.fullName.substring(0, 2).toUpperCase()}
+            </div>
+            <div className="hidden sm:block text-left">
+              <p className="text-xs font-bold text-slate-900 leading-tight">{user.fullName}</p>
+              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">{user.role}</span>
+            </div>
+            <button
+              onClick={logout}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
-          <span className="text-xs font-semibold text-slate-800 hidden sm:inline-block">Admin Manager</span>
-        </div>
+        )}
       </div>
     </header>
   );
