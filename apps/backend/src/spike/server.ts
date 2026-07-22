@@ -89,6 +89,10 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
   }
 });
 
+app.get('/api/users/online', async (req: Request, res: Response) => {
+  res.json({ onlineUserIds: Array.from(OrderRepository.onlineUserIds) });
+});
+
 // Staff User Management Endpoints (MANAGER only)
 app.get('/api/users', authorizeRoles(['MANAGER']), async (req: Request, res: Response) => {
   try {
@@ -291,6 +295,9 @@ app.post('/api/orders/:id/transition', authorizeRoles(['MANAGER', 'STAFF', 'RECE
   }
 });
 
+// Socket.IO Connection Tracker
+const socketToUser = new Map<string, string>();
+
 // Socket.IO Event Handlers
 io.on('connection', (socket: Socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`);
@@ -315,8 +322,26 @@ io.on('connection', (socket: Socket) => {
       return;
     }
 
+    if (userId) {
+      socketToUser.set(socket.id, userId);
+      OrderRepository.onlineUserIds.add(userId);
+      io.emit('user:connection_change', { userId, online: true });
+      console.log(`[Socket] User ${userId} joined online.`);
+    }
+
     socket.join(room);
     console.log(`[Socket] Client ${socket.id} joined ${room} for station ${stationId}`);
+  });
+
+  socket.on('disconnect', () => {
+    const userId = socketToUser.get(socket.id);
+    if (userId) {
+      socketToUser.delete(socket.id);
+      OrderRepository.onlineUserIds.delete(userId);
+      io.emit('user:connection_change', { userId, online: false });
+      console.log(`[Socket] User ${userId} disconnected. User offline.`);
+    }
+    console.log(`[Socket] Client disconnected: ${socket.id}`);
   });
 
   socket.on('order:create', async (data: CreateOrderPayload & { userId?: string; userRole?: string }) => {

@@ -53,6 +53,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
   );
   const [stationNetworks, setStationNetworks] = useState<StationNetworkMap>(getInitialStationNetworks);
   const [reconnectedCount, setReconnectedCount] = useState<number>(0);
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
 
   const socketRef = useRef<Socket | null>(null);
   const liveBufferRef = useRef<KitchenEvent[]>([]);
@@ -217,8 +218,9 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
 
   // Initialize socket connection
   useEffect(() => {
+    const isStationOnline = stationNetworksRef.current[activeStationId as StationId] !== false;
     const socket = io(SOCKET_URL, {
-      autoConnect: true,
+      autoConnect: isStationOnline,
       reconnectionAttempts: 10,
     });
     socketRef.current = socket;
@@ -265,6 +267,28 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
       setLastProcessedSequence(0);
       lastSeqRef.current = 0;
     });
+
+    socket.on('user:connection_change', (data: { userId: string; online: boolean }) => {
+      setOnlineUserIds((prev) => {
+        const next = new Set(prev);
+        if (data.online) {
+          next.add(data.userId);
+        } else {
+          next.delete(data.userId);
+        }
+        return next;
+      });
+    });
+
+    // Initial fetch of online users
+    fetch('http://localhost:4000/api/users/online')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.onlineUserIds) {
+          setOnlineUserIds(new Set(data.onlineUserIds));
+        }
+      })
+      .catch((err) => console.error('[Socket] Failed to fetch online users list:', err));
 
     return () => {
       socket.disconnect();
@@ -328,17 +352,23 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         const isTurningOn = updated[stationId];
         if (isTurningOn) {
           console.log(`[Network Simulation] Station '${stationId}' network turned ON. Triggering replay sync...`);
+          if (activeStationId === stationId) {
+            socketRef.current?.connect();
+          }
           setTimeout(() => {
             requestReplay();
           }, 100);
         } else {
           console.log(`[Network Simulation] Station '${stationId}' network turned OFFLINE.`);
+          if (activeStationId === stationId) {
+            socketRef.current?.disconnect();
+          }
         }
 
         return updated;
       });
     },
-    [requestReplay]
+    [activeStationId, requestReplay]
   );
 
   // Toggle all stations global network ON/OFF
@@ -373,6 +403,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     lastProcessedSequence,
     connectionStatus,
     stationNetworks,
+    onlineUserIds,
     reconnectedCount,
     createOrder,
     transitionOrder,

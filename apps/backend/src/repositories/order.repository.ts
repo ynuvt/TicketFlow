@@ -20,6 +20,8 @@ export interface TransitionOrderInput {
 let globalSequenceCounter: number | null = null;
 
 export class OrderRepository {
+  public static onlineUserIds = new Set<string>();
+
   public static resetSequenceCounter() {
     globalSequenceCounter = null;
   }
@@ -113,9 +115,16 @@ export class OrderRepository {
       return null;
     }
 
+    // Filter to only online staff members
+    let activeStaff = staffMembers.filter((s: any) => OrderRepository.onlineUserIds.has(s.id));
+    if (activeStaff.length === 0) {
+      // Fallback: If ALL cooks at this station are offline, route among all cooks so the ticket can be visible to admin
+      activeStaff = staffMembers;
+    }
+
     const candidateWorkloads = [];
 
-    for (const staff of staffMembers) {
+    for (const staff of activeStaff) {
       const { predictedWorkload, avgTime } = await this.calculateStaffPredictedWorkload(
         tx,
         staff.id,

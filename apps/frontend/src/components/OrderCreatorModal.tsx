@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CreateOrderPayload, OrderItem, StationId } from '@ticketflow/types';
-import { X, Plus, Trash2, ShieldAlert, Sparkles, ChefHat } from 'lucide-react';
+import { X, Plus, Trash2, Sparkles, Receipt } from 'lucide-react';
 
 interface OrderCreatorModalProps {
   isOpen: boolean;
@@ -9,12 +9,12 @@ interface OrderCreatorModalProps {
 }
 
 const PRESET_ITEMS = [
-  { id: 'preset-1', name: 'Smash Cheeseburger', defaultNotes: 'Double patty, bacon jam' },
-  { id: 'preset-2', name: 'Wood-Fired Margherita Pizza', defaultNotes: 'Fresh basil & mozzarella' },
-  { id: 'preset-3', name: 'Ribeye Steak (12oz)', defaultNotes: 'Medium rare, herb butter' },
-  { id: 'preset-4', name: 'Caesar Salad Bowl', defaultNotes: 'Grilled chicken, croutons' },
-  { id: 'preset-5', name: 'Crispy Truffle Fries', defaultNotes: 'Parmesan & garlic dip' },
-  { id: 'preset-6', name: 'Craft IPA / Soda Pint', defaultNotes: 'Ice cold' },
+  { id: 'preset-1', name: 'Paneer Tikka Pizza (Veg)', defaultNotes: 'Tandoori sauce, paneer' },
+  { id: 'preset-2', name: 'Chicken Tikka Pizza (Non-Veg)', defaultNotes: 'Double tikka chunks' },
+  { id: 'preset-3', name: 'Butter Chicken Zinger Burger', defaultNotes: 'Butter chicken mayo' },
+  { id: 'preset-4', name: 'Aloo Tikki Burger (Veg)', defaultNotes: 'Sweet tamarind chutney' },
+  { id: 'preset-5', name: 'Masala Corn & Cheese Pizza', defaultNotes: 'Golden corn, local spices' },
+  { id: 'preset-6', name: 'Masala Paneer Burger (Veg)', defaultNotes: 'Grilled paneer patty' },
 ];
 
 export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
@@ -27,7 +27,7 @@ export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
   const [estimatedPrepTime, setEstimatedPrepTime] = useState<number>(10);
   const [targetStation, setTargetStation] = useState<StationId>('intake');
   const [items, setItems] = useState<OrderItem[]>([
-    { id: '1', name: 'Smash Cheeseburger', quantity: 2, notes: 'Medium rare, extra pickles' },
+    { id: '1', name: 'Paneer Tikka Pizza (Veg)', quantity: 1, notes: 'Extra tandoori sauce' },
   ]);
 
   if (!isOpen) return null;
@@ -64,64 +64,72 @@ export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
 
     // Reset and close
     setCustomerName('');
-    setItems([{ id: '1', name: 'Smash Cheeseburger', quantity: 2, notes: 'Medium rare, extra pickles' }]);
+    setItems([{ id: '1', name: 'Paneer Tikka Pizza (Veg)', quantity: 1, notes: 'Extra tandoori sauce' }]);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white border-2 border-slate-900 rounded-2xl max-w-xl w-full p-6 pt-8 shadow-2xl relative overflow-hidden font-mono text-slate-900 animate-in fade-in zoom-in-95 duration-200">
+        
+        {/* Jagged Torn Paper Top Mask */}
+        <div className="absolute top-0 left-0 right-0 h-3.5 overflow-hidden select-none -translate-y-[1px]">
+          <svg className="w-full h-full fill-slate-950/80" viewBox="0 0 100 10" preserveAspectRatio="none">
+            <path d="M0,10 L2.5,0 L5,10 L7.5,0 L10,10 L12.5,0 L15,10 L17.5,0 L20,10 L22.5,0 L25,10 L27.5,0 L30,10 L32.5,0 L35,10 L37.5,0 L40,10 L42.5,0 L45,10 L47.5,0 L50,10 L52.5,0 L55,10 L57.5,0 L60,10 L62.5,0 L65,10 L67.5,0 L70,10 L72.5,0 L75,10 L77.5,0 L80,10 L82.5,0 L85,10 L87.5,0 L90,10 L92.5,0 L95,10 L97.5,0 L100,10 L100,10 L0,10 Z" />
+          </svg>
+        </div>
+
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div className="flex items-center justify-between border-b border-dashed border-slate-400 pb-4 text-center">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
-              <ChefHat className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-slate-900 text-amber-300 flex items-center justify-center shadow-sm">
+              <Receipt className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">Create Kitchen Order Ticket</h2>
-              <p className="text-xs text-slate-400">Broadcasts instant sequence event to KDS boards</p>
+            <div className="text-left">
+              <h2 className="text-base font-black text-slate-900 tracking-wider">The Wesee Cafe</h2>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">New KOT Generation receipt</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           {/* Customer & Priority */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Customer / Table Identifier</label>
+              <label className="block text-xs font-black text-slate-700 uppercase mb-1">Customer / Table ID</label>
               <input
                 type="text"
                 required
-                placeholder="e.g. Table 12 or Order #204"
+                placeholder="e.g. Table 4 or Order #5"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-slate-950 focus:bg-white"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Priority Level</label>
+              <label className="block text-xs font-black text-slate-700 uppercase mb-1">KOT Priority</label>
               <div className="grid grid-cols-3 gap-1.5">
                 {(['NORMAL', 'HIGH', 'VIP'] as const).map((p) => (
                   <button
                     key={p}
                     type="button"
                     onClick={() => setPriority(p)}
-                    className={`py-2 rounded-lg text-xs font-bold transition-all border ${
+                    className={`py-2 rounded-xl text-xs font-black border transition-all ${
                       priority === p
                         ? p === 'VIP'
-                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold'
+                          ? 'bg-amber-400 text-slate-950 border-amber-500'
                           : p === 'HIGH'
-                          ? 'bg-rose-500 text-white border-rose-400 font-extrabold'
-                          : 'bg-sky-500 text-white border-sky-400 font-extrabold'
-                        : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800'
+                          ? 'bg-rose-600 text-white border-rose-700 shadow-sm shadow-rose-600/10'
+                          : 'bg-slate-900 text-white border-slate-950 shadow-sm'
+                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-800'
                     }`}
                   >
                     {p}
@@ -134,23 +142,23 @@ export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
           {/* Prep Time & Initial Station */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Est. Prep Time (minutes)</label>
+              <label className="block text-xs font-black text-slate-700 uppercase mb-1">Est. Prep Time (Mins)</label>
               <input
                 type="number"
                 min={1}
                 max={60}
                 value={estimatedPrepTime}
                 onChange={(e) => setEstimatedPrepTime(parseInt(e.target.value, 10) || 10)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-slate-950 focus:bg-white"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Target Initial Station</label>
+              <label className="block text-xs font-black text-slate-700 uppercase mb-1">Start Station</label>
               <select
                 value={targetStation}
                 onChange={(e) => setTargetStation(e.target.value as StationId)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-slate-950 focus:bg-white"
               >
                 <option value="intake">Order Intake (PLACED)</option>
                 <option value="prep">Prep Line (PREPARING)</option>
@@ -160,17 +168,17 @@ export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
           </div>
 
           {/* Quick Preset Buttons */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">Quick Add Menu Items</label>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-black text-slate-700 uppercase">Quick Add Menu Items</label>
             <div className="flex flex-wrap gap-1.5">
               {PRESET_ITEMS.map((preset) => (
                 <button
                   key={preset.id}
                   type="button"
                   onClick={() => handleAddItem(preset.name, preset.defaultNotes)}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium flex items-center gap-1 transition-colors"
+                  className="px-2.5 py-1.5 rounded-lg bg-amber-50/50 hover:bg-amber-50 text-amber-900 border border-amber-300/80 text-[11px] font-black flex items-center gap-1 transition-colors cursor-pointer"
                 >
-                  <Plus className="w-3 h-3 text-amber-400" />
+                  <Plus className="w-3.5 h-3.5" />
                   <span>{preset.name}</span>
                 </button>
               ))}
@@ -178,36 +186,36 @@ export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
           </div>
 
           {/* Items List */}
-          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-            <label className="block text-xs font-semibold text-slate-300">Order Items ({items.length})</label>
+          <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+            <label className="block text-xs font-black text-slate-700 uppercase">Order Items ({items.length})</label>
             {items.map((item) => (
-              <div key={item.id} className="flex items-center gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800">
+              <div key={item.id} className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200/80">
                 <input
                   type="number"
                   min={1}
                   max={20}
                   value={item.quantity}
                   onChange={(e) => handleUpdateItem(item.id, { quantity: parseInt(e.target.value, 10) || 1 })}
-                  className="w-12 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono font-bold text-xs text-amber-400 focus:outline-none"
+                  className="w-12 bg-white border border-slate-300 rounded-lg px-1.5 py-1 text-center font-mono font-black text-xs text-blue-700 focus:outline-none focus:ring-1 focus:ring-slate-900"
                 />
                 <input
                   type="text"
                   placeholder="Item name"
                   value={item.name}
                   onChange={(e) => handleUpdateItem(item.id, { name: e.target.value })}
-                  className="flex-1 bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white focus:outline-none"
+                  className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-slate-900"
                 />
                 <input
                   type="text"
-                  placeholder="Special instructions"
+                  placeholder="Notes"
                   value={item.notes || ''}
                   onChange={(e) => handleUpdateItem(item.id, { notes: e.target.value })}
-                  className="w-1/3 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-amber-400/90 focus:outline-none"
+                  className="w-1/3 bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-amber-700 focus:outline-none focus:ring-1 focus:ring-slate-900 font-bold"
                 />
                 <button
                   type="button"
                   onClick={() => handleRemoveItem(item.id)}
-                  className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -216,20 +224,20 @@ export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
           </div>
 
           {/* Modal Footer */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-dashed border-slate-400">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black transition-colors font-mono cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!customerName.trim() || items.length === 0}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-xs shadow-lg shadow-orange-500/20 disabled:opacity-50 transition-all flex items-center gap-1.5"
+              className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-black text-xs disabled:opacity-50 transition-all flex items-center gap-1.5 font-mono cursor-pointer active:scale-95 shadow-md"
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-4 h-4 text-amber-400" />
               <span>Broadcast Ticket</span>
             </button>
           </div>

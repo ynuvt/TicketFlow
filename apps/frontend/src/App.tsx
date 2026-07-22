@@ -55,6 +55,7 @@ function AppContent() {
     lastProcessedSequence,
     connectionStatus,
     stationNetworks,
+    onlineUserIds,
     createOrder,
     transitionOrder,
     toggleStationNetwork,
@@ -222,6 +223,7 @@ function AppContent() {
             onTransitionOrder={transitionOrder}
             stationNetworks={stationNetworks}
             onToggleStationNetwork={toggleStationNetwork}
+            onlineUserIds={onlineUserIds}
           />
         );
 
