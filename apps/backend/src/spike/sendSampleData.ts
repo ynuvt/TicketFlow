@@ -70,6 +70,8 @@ function postOrder(payload: any): Promise<any> {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData),
+          'x-user-role': 'MANAGER',
+          'x-user-id': 'admin',
         },
       },
       (res) => {

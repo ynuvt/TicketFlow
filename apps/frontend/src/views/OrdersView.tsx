@@ -34,7 +34,6 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onTransitionOrde
                   <th className="pb-3 font-semibold">ORDER ID</th>
                   <th className="pb-3 font-semibold">CUSTOMER</th>
                   <th className="pb-3 font-semibold">ITEMS</th>
-                  <th className="pb-3 font-semibold">PRIORITY</th>
                   <th className="pb-3 font-semibold">STATION</th>
                   <th className="pb-3 font-semibold">STATUS</th>
                   <th className="pb-3 font-semibold">CREATED</th>
@@ -50,19 +49,6 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onTransitionOrde
                     <td className="py-3.5 font-bold text-slate-900">{ord.customerName}</td>
                     <td className="py-3.5 text-slate-600">
                       {ord.items.map((i) => `${i.quantity}x ${i.name}`).join(', ')}
-                    </td>
-                    <td className="py-3.5">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          ord.priority === 'VIP'
-                            ? 'bg-amber-100 text-amber-800'
-                            : ord.priority === 'HIGH'
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {ord.priority}
-                      </span>
                     </td>
                     <td className="py-3.5 font-bold uppercase text-purple-700">
                       {STATIONS[ord.currentStationId]?.name || ord.currentStationId}

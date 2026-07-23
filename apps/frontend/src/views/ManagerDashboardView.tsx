@@ -158,7 +158,6 @@ export const ManagerDashboardView: React.FC<ManagerDashboardViewProps> = ({
                 <th className="pb-3 font-semibold">Order ID</th>
                 <th className="pb-3 font-semibold">Customer</th>
                 <th className="pb-3 font-semibold">Items</th>
-                <th className="pb-3 font-semibold">Priority</th>
                 <th className="pb-3 font-semibold">Current Station</th>
                 <th className="pb-3 font-semibold">Status</th>
                 <th className="pb-3 font-semibold text-right">Action</th>
@@ -171,19 +170,6 @@ export const ManagerDashboardView: React.FC<ManagerDashboardViewProps> = ({
                   <td className="py-3 font-semibold text-white">{ord.customerName}</td>
                   <td className="py-3 text-slate-400">
                     {ord.items.map((i) => `${i.quantity}x ${i.name}`).join(', ')}
-                  </td>
-                  <td className="py-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        ord.priority === 'VIP'
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                          : ord.priority === 'HIGH'
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      {ord.priority}
-                    </span>
                   </td>
                   <td className="py-3 text-purple-400 font-bold">{ord.currentStationId.toUpperCase()}</td>
                   <td className="py-3">

@@ -4,8 +4,9 @@ export interface User {
   id: string;
   username: string;
   fullName: string;
-  role: 'MANAGER' | 'STAFF';
+  role: 'MANAGER' | 'STAFF' | 'RECEPTIONIST';
   assignedStations: string[];
+  stationPrepTimes?: Record<string, number>;
 }
 
 interface AuthContextType {
@@ -14,16 +15,18 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   hasStationAccess: (stationId: string) => boolean;
+  isPathAllowed: (path: string) => boolean;
+  authFetch: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
-const LOCAL_STORAGE_USER_KEY = 'ticketflow_auth_user';
+const SESSION_STORAGE_USER_KEY = 'ticketflow_auth_user';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
     try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_USER_KEY);
+      const saved = sessionStorage.getItem(SESSION_STORAGE_USER_KEY);
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -49,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await res.json();
       if (data.user) {
         setUser(data.user);
-        localStorage.setItem(LOCAL_STORAGE_USER_KEY, JSON.stringify(data.user));
+        sessionStorage.setItem(SESSION_STORAGE_USER_KEY, JSON.stringify(data.user));
         setIsLoading(false);
         return true;
       }
@@ -62,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
+    sessionStorage.removeItem(SESSION_STORAGE_USER_KEY);
     try {
       window.history.pushState({}, '', '/');
       window.dispatchEvent(new PopStateEvent('popstate'));
@@ -74,12 +77,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const hasStationAccess = (stationId: string): boolean => {
     if (!user) return false;
     if (user.role === 'MANAGER') return true;
-    if (stationId === 'overview' || stationId === 'manager') return true;
+    if (user.role === 'RECEPTIONIST') return stationId === 'intake';
     return user.assignedStations.includes(stationId);
   };
 
+  const isPathAllowed = (path: string): boolean => {
+    if (!user) return false;
+
+    // Normalize path to exclude query parameters and handle root
+    const normalizedPath = path.split('?')[0];
+    const normPath = normalizedPath === '/' ? '' : normalizedPath;
+
+    // Help / Call Manager option is only for Staff & Receptionists
+    if (normPath === '/help') {
+      return user.role === 'STAFF' || user.role === 'RECEPTIONIST';
+    }
+
+    if (user.role === 'MANAGER') return true;
+
+    if (user.role === 'RECEPTIONIST') {
+      return normPath === '/intake';
+    }
+
+    if (user.role === 'STAFF') {
+      // Station-specific views
+      const stationMap: Record<string, string> = {
+        '/intake': 'intake',
+        '/prep': 'prep',
+        '/grill': 'grill',
+        '/assembly': 'assembly',
+        '/expedite': 'expedite',
+      };
+
+      const stationId = stationMap[normPath];
+      if (stationId) {
+        return user.assignedStations.includes(stationId);
+      }
+      return false;
+    }
+
+    return false;
+  };
+
+  const authFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+    const headers = new Headers(options.headers || {});
+    if (user) {
+      headers.set('x-user-id', user.id);
+      headers.set('x-user-role', user.role);
+    }
+    return fetch(url, { ...options, headers });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, hasStationAccess }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, hasStationAccess, isPathAllowed, authFetch }}>
       {children}
     </AuthContext.Provider>
   );

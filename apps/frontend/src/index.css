@@ -5,8 +5,9 @@
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  background-color: #020617;
-  color: #f8fafc;
+  background-color: #0f172a; /* Default to dark slate-900 matching login view */
+  color: #0f172a;
+  transition: background-color 150ms ease-in-out;
 }
 
 @layer utilities {

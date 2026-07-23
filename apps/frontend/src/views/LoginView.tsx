@@ -95,29 +95,117 @@ export const LoginView: React.FC = () => {
         {/* Quick Credentials Preset Cards */}
         <div className="mt-8 pt-6 border-t border-slate-700/80 space-y-3">
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center">
-            Quick Admin & Staff Presets
+            Quick User Account Presets
           </p>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 flex-wrap">
             <button
               onClick={() => fillQuickLogin('admin', 'admin123')}
-              className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
             >
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 <ChefHat className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-xs font-bold text-white">Admin Manager</span>
+                <span className="text-xs font-bold text-white">Admin</span>
               </div>
-              <p className="text-[10px] text-slate-400 font-mono mt-0.5">admin / admin123</p>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">admin / admin123</p>
+            </button>
+
+            <button
+              onClick={() => fillQuickLogin('recep1', 'recep123')}
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
+            >
+              <div className="flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs font-bold text-white">Reception</span>
+              </div>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">recep1 / recep123</p>
             </button>
 
             <button
               onClick={() => fillQuickLogin('cook1', 'pass123')}
-              className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
             >
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 <User className="w-3.5 h-3.5 text-blue-400" />
-                <span className="text-xs font-bold text-white">Prep & Grill Cook</span>
+                <span className="text-xs font-bold text-white">cook1 (Prep)</span>
               </div>
-              <p className="text-[10px] text-slate-400 font-mono mt-0.5">cook1 / pass123</p>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">cook1 / pass123</p>
+            </button>
+
+            <button
+              onClick={() => fillQuickLogin('cook2', 'pass123')}
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
+            >
+              <div className="flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-xs font-bold text-white">cook2 (Prep)</span>
+              </div>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">cook2 / pass123</p>
+            </button>
+
+            <button
+              onClick={() => fillQuickLogin('cook3', 'pass123')}
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
+            >
+              <div className="flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-purple-400" />
+                <span className="text-xs font-bold text-white">cook3 (Grill)</span>
+              </div>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">cook3 / pass123</p>
+            </button>
+
+            <button
+              onClick={() => fillQuickLogin('cook4', 'pass123')}
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
+            >
+              <div className="flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-purple-400" />
+                <span className="text-xs font-bold text-white">cook4 (Grill)</span>
+              </div>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">cook4 / pass123</p>
+            </button>
+
+            <button
+              onClick={() => fillQuickLogin('cook5', 'pass123')}
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
+            >
+              <div className="flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="text-xs font-bold text-white">cook5 (Assembly)</span>
+              </div>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">cook5 / pass123</p>
+            </button>
+
+            <button
+              onClick={() => fillQuickLogin('cook6', 'pass123')}
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
+            >
+              <div className="flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="text-xs font-bold text-white">cook6 (Assembly)</span>
+              </div>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">cook6 / pass123</p>
+            </button>
+
+            <button
+              onClick={() => fillQuickLogin('cook7', 'pass123')}
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
+            >
+              <div className="flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs font-bold text-white">cook7 (Expedite)</span>
+              </div>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">cook7 / pass123</p>
+            </button>
+
+            <button
+              onClick={() => fillQuickLogin('cook8', 'pass123')}
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-amber-500/60 text-left transition-colors"
+            >
+              <div className="flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs font-bold text-white">cook8 (Expedite)</span>
+              </div>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">cook8 / pass123</p>
             </button>
           </div>
         </div>

@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Order, OrderStatus, StationId } from '@ticketflow/types';
 import { STATIONS } from '../types/kds';
 import { OrderTicket } from '../components/OrderTicket';
-import { Wifi, WifiOff, ChefHat, CheckCircle2, Layers, AlertCircle, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { ChefHat, CheckCircle2, Wifi, WifiOff, Layers, Search, Clock } from 'lucide-react';
 
 interface StationBoardViewProps {
   stationId: StationId;
@@ -27,6 +27,13 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
   const [customerEta, setCustomerEta] = useState<number | null>(null);
   const [stationSummaries, setStationSummaries] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const itemsPerPage = 15;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, orders.length]);
+
   const stationConfig = STATIONS[stationId] || STATIONS.intake;
 
   // Fetch live Customer ETA metrics for Intake board
@@ -98,8 +105,8 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
           o.assignedUserId === `user-${user.username}`
         );
       } else {
-        // Manager/Receptionist sees all orders at S (assigned or unassigned)
-        return true;
+        // Manager/Receptionist sees all assigned orders at S
+        return !!o.assignedUserId;
       }
     })
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -116,23 +123,17 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
       expedite: 4
     };
 
-    // 1. Sum up default prep times for all stations starting from the current station
     let totalEst = 0;
     for (let i = currentIdx; i < stationsOrder.length; i++) {
       const stId = stationsOrder[i];
       totalEst += defaultPrepTimes[stId] || 5;
     }
 
-    // 2. Subtract the elapsed time that the order has spent at its current station
     const elapsedMinutes = (Date.now() - new Date(order.updatedAt).getTime()) / 60000;
-    
-    // We cap subtraction at current station's avg prep time to avoid negative estimates
     const currentStationAvg = defaultPrepTimes[order.currentStationId || 'prep'] || 5;
     const currentStationProgress = Math.min(elapsedMinutes, currentStationAvg);
-    
     totalEst = totalEst - currentStationProgress;
 
-    // 3. Add queue delays from summaries if there are waiting orders
     for (let i = currentIdx; i < stationsOrder.length; i++) {
       const stId = stationsOrder[i];
       const summary = summaries?.[stId];
@@ -151,6 +152,11 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
     const customer = o.customerName.toLowerCase();
     return kotId.includes(term) || o.id.toLowerCase().includes(term) || customer.includes(term);
   });
+
+  const totalPages = Math.ceil(displayedOrders.length / itemsPerPage);
+  const paginatedOrders = stationId === 'intake'
+    ? displayedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    : displayedOrders;
 
   return (
     <div className="space-y-6 font-sans">
@@ -234,13 +240,16 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
           {stationId === 'intake' && (
-            <input
-              type="text"
-              placeholder="Search KOT / Customer..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-900 w-48 transition-all"
-            />
+            <div className="relative w-48 shrink-0">
+              <input
+                type="text"
+                placeholder="Search KOT / Customer..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-slate-50 border border-slate-200/80 rounded-xl pl-8 pr-3.5 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-900 w-full transition-all"
+              />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            </div>
           )}
 
           {stationId === 'intake' && onOpenCreateModal && (
@@ -323,7 +332,13 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
                     return (
                       <div
                         key={o.id}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-bold shrink-0 shadow-sm transition-transform hover:scale-105 bg-slate-50 text-slate-700 border-slate-200"
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-bold shrink-0 shadow-sm transition-transform hover:scale-105 ${
+                          o.priority === 'VIP'
+                            ? 'bg-amber-50 text-amber-800 border-amber-300'
+                            : o.priority === 'HIGH'
+                            ? 'bg-rose-50 text-rose-800 border-rose-300'
+                            : 'bg-slate-50 text-slate-700 border-slate-200'
+                        }`}
                         title={`${o.customerName} - ${totalQty} items`}
                       >
                         <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
@@ -351,26 +366,54 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {displayedOrders.map((order) => {
-                const orderEta = calculateOrderEstimatedServingTime(order, stationSummaries);
-                return (
-                  <div key={order.id} className="relative group">
-                    <OrderTicket
-                      order={order}
-                      onTransitionOrder={onTransitionOrder}
-                      activeStationId={stationId}
-                      assignedStaffName={getAssignedUserName(order.assignedUserId)}
-                    />
-                    {stationId === 'intake' && (
-                      <div className="mt-2 bg-slate-900 border border-slate-900 text-white p-2.5 rounded-xl text-[10px] font-mono font-black flex items-center justify-between shadow-sm">
-                        <span>EST. TIME TO SERVE:</span>
-                        <span className="text-amber-300 font-extrabold text-xs">{orderEta} mins</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {paginatedOrders.map((order) => {
+                  const orderEta = calculateOrderEstimatedServingTime(order, stationSummaries);
+                  return (
+                    <div key={order.id} className="relative group">
+                      <OrderTicket
+                        order={order}
+                        onTransitionOrder={onTransitionOrder}
+                        activeStationId={stationId}
+                        assignedStaffName={getAssignedUserName(order.assignedUserId)}
+                      />
+                      {stationId === 'intake' && (
+                        <div className="mt-2 bg-slate-900 border border-slate-900 text-white p-2.5 rounded-xl text-[10px] font-mono font-black flex items-center justify-between shadow-sm">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-amber-400" />
+                            EST. TIME TO SERVE:
+                          </span>
+                          <span className="text-amber-300 font-extrabold text-xs">{orderEta} mins</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Pagination Controls */}
+              {stationId === 'intake' && totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-200/85 pt-4 font-mono text-xs text-slate-800">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white font-bold cursor-pointer transition-colors shadow-sm"
+                  >
+                    ◀ Prev Page
+                  </button>
+                  <span className="font-bold">
+                    Page {currentPage} of {totalPages} ({displayedOrders.length} orders)
+                  </span>
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white font-bold cursor-pointer transition-colors shadow-sm"
+                  >
+                    Next Page ▶
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

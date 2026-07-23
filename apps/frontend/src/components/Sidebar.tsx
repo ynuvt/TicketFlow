@@ -11,10 +11,12 @@ import {
   BarChart3,
   Bell,
   Settings,
-  Ticket,
   X,
   Users,
   LogOut,
+  Phone,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,6 +26,8 @@ interface SidebarProps {
   isSystemOnline: boolean;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -32,49 +36,63 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isSystemOnline,
   isOpenMobile = false,
   onCloseMobile,
+  isCollapsed = false,
+  onToggleCollapse,
 }) => {
-  const { user, logout, hasStationAccess } = useAuth();
+  const { user, logout, isPathAllowed } = useAuth();
 
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'All Stations', path: '/all-stations', icon: LayoutGrid },
-    { name: 'Order Intake', path: '/intake', icon: ClipboardList, stationId: 'intake' },
-    { name: 'Prep Line', path: '/prep', icon: UtensilsCrossed, stationId: 'prep' },
-    { name: 'Grill & Cook', path: '/grill', icon: Flame, stationId: 'grill' },
-    { name: 'Plate & Assembly', path: '/assembly', icon: PackageCheck, stationId: 'assembly' },
-    { name: 'Expedite & Pass', path: '/expedite', icon: ConciergeBell, stationId: 'expedite' },
+    { name: 'Order Intake', path: '/intake', icon: ClipboardList },
+    { name: 'Prep Line', path: '/prep', icon: UtensilsCrossed },
+    { name: 'Grill & Cook', path: '/grill', icon: Flame },
+    { name: 'Plate & Assembly', path: '/assembly', icon: PackageCheck },
+    { name: 'Expedite & Pass', path: '/expedite', icon: ConciergeBell },
     { name: 'Orders', path: '/orders', icon: Receipt },
-    { name: 'Staff Management', path: '/staff', icon: Users, managerOnly: true },
+    { name: 'Staff Management', path: '/staff', icon: Users },
     { name: 'Reports', path: '/reports', icon: BarChart3 },
     { name: 'Alerts', path: '/alerts', icon: Bell },
     { name: 'Settings', path: '/settings', icon: Settings },
+    { name: 'Call Manager', path: '/help', icon: Phone },
   ];
 
   const isActivePath = (itemPath: string) => {
-    if (itemPath === '/') {
+    if (itemPath === '/dashboard') {
       return currentPath === '/' || currentPath === '/dashboard';
     }
     return currentPath === itemPath;
   };
 
   const filteredNavItems = navItems.filter((item) => {
-    if (item.managerOnly && user?.role !== 'MANAGER') return false;
-    if (item.stationId && !hasStationAccess(item.stationId)) return false;
-    return true;
+    return isPathAllowed(item.path);
   });
 
   const content = (
     <div className="h-full flex flex-col justify-between select-none">
       <div>
         {/* Brand Header */}
-        <div className="p-5 pb-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Chef Logo" className="w-10 h-10 object-contain rounded-xl border border-amber-200/80 bg-amber-50/50 p-0.5 shadow-sm" />
-            <div>
-              <h1 className="text-lg font-bold text-slate-900 leading-tight">Ticket Flow</h1>
-              <p className="text-xs font-semibold text-amber-600">KDS Master Edition</p>
-            </div>
+        <div className={`p-4 pb-3 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+          <div className="flex items-center gap-3 min-w-0">
+            <img src="/logo.png" alt="Chef Logo" className="w-9 h-9 object-contain rounded-xl border border-amber-200/80 bg-amber-50/50 p-0.5 shadow-sm shrink-0" />
+            {!isCollapsed && (
+              <div className="min-w-0">
+                <h1 className="text-base font-black text-slate-900 leading-tight truncate">Ticket Flow</h1>
+                <p className="text-[10px] font-bold text-amber-600 truncate">KDS Master Edition</p>
+              </div>
+            )}
           </div>
+
+          {/* Desktop Toggle Collapse Button */}
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+            >
+              {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+            </button>
+          )}
 
           {/* Close Mobile Drawer Button */}
           {onCloseMobile && (
@@ -88,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Navigation Items */}
-        <nav className="px-3 py-2 space-y-1">
+        <nav className={`py-2 space-y-1 ${isCollapsed ? 'px-2' : 'px-3'}`}>
           {filteredNavItems.map((item) => {
             const Icon = item.icon;
             const active = isActivePath(item.path);
@@ -97,6 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <a
                 key={item.path}
                 href={item.path}
+                title={isCollapsed ? item.name : undefined}
                 onClick={(e) => {
                   if (e.ctrlKey || e.metaKey) {
                     return;
@@ -105,14 +124,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onNavigate(item.path);
                   if (onCloseMobile) onCloseMobile();
                 }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`w-full flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3.5 py-2.5'} rounded-xl text-xs font-semibold transition-all ${
                   active
                     ? 'bg-blue-50 text-blue-600 font-bold shadow-sm'
                     : 'text-slate-600 hover:bg-slate-100/70 hover:text-slate-900'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${active ? 'text-blue-600' : 'text-slate-500'}`} />
-                <span>{item.name}</span>
+                <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-blue-600' : 'text-slate-500'}`} />
+                {!isCollapsed && <span>{item.name}</span>}
               </a>
             );
           })}
@@ -120,14 +139,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Footer Section */}
-      <div className="p-4 space-y-3">
+      <div className={`p-3 space-y-3 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
         {/* User Session Info & Logout */}
         {user && (
-          <div className="bg-slate-50 border border-slate-200/80 p-3 rounded-2xl flex items-center justify-between">
-            <div className="min-w-0 pr-2">
-              <p className="font-bold text-slate-900 text-xs truncate">{user.fullName}</p>
-              <p className="text-[10px] font-mono text-slate-500 truncate">@{user.username} ({user.role})</p>
-            </div>
+          <div className={`bg-slate-50 border border-slate-200/80 rounded-2xl flex items-center ${isCollapsed ? 'p-2 justify-center' : 'p-3 justify-between'}`}>
+            {!isCollapsed && (
+              <div className="min-w-0 pr-2">
+                <p className="font-bold text-slate-900 text-xs truncate">{user.fullName}</p>
+                <p className="text-[10px] font-mono text-slate-500 truncate">@{user.username} ({user.role})</p>
+              </div>
+            )}
             <button
               onClick={logout}
               className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0"
@@ -139,10 +160,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
 
         {/* Copyright */}
-        <div className="text-[11px] text-slate-400 px-1 font-mono">
-          <p>© 2025 Ticket Flow</p>
-          <p>KDS v1.0</p>
-        </div>
+        {!isCollapsed && (
+          <div className="text-[11px] text-slate-400 px-1 font-mono">
+            <p>© 2025 Ticket Flow</p>
+            <p>KDS v1.0</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -150,7 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-64 bg-white border-r border-slate-200/80 flex-col shrink-0 min-h-screen">
+      <aside className={`hidden md:flex ${isCollapsed ? 'w-16' : 'w-64'} bg-white border-r border-slate-200/80 flex-col shrink-0 min-h-screen transition-all duration-300`}>
         {content}
       </aside>
 

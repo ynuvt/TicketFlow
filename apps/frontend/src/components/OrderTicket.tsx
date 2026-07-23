@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Order, OrderStatus, StationId } from '@ticketflow/types';
 import { STATIONS } from '../types/kds';
-import { Clock, ArrowRight, CheckCircle2, User, ShieldAlert } from 'lucide-react';
+import { Clock, ArrowRight, CheckCircle2, User, ShieldAlert, Receipt, Download } from 'lucide-react';
+import { downloadKot } from '../utils/kot';
 
 interface OrderTicketProps {
   order: Order;
   onTransitionOrder: (orderId: string, currentStatus: OrderStatus, newStatus: OrderStatus, stationId?: StationId) => void;
   activeStationId?: StationId | 'overview' | 'manager';
+  assignedStaffName?: string;
 }
 
-export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrder }) => {
+export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrder, activeStationId, assignedStaffName }) => {
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(
     Math.floor((Date.now() - order.createdAt) / 1000)
   );
@@ -29,120 +31,175 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
   const isWarning = minutes >= Math.floor(order.estimatedPrepTime * 0.75);
 
   const getTimerBadgeStyle = () => {
-    if (isUrgent) return 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse';
-    if (isWarning) return 'bg-amber-50 text-amber-700 border-amber-200';
-    return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (isUrgent) return 'bg-rose-500 text-white font-bold animate-pulse border-rose-600';
+    if (isWarning) return 'bg-amber-400 text-slate-900 font-bold border-amber-500';
+    return 'bg-emerald-500 text-white font-bold border-emerald-600';
   };
 
-  const currentStationConfig = STATIONS[order.currentStationId] || STATIONS.intake;
+  const currentStationConfig = STATIONS[order.currentStationId as StationId] || STATIONS.prep;
+  const kotShortId = `#${order.id.slice(-6).toUpperCase()}`;
 
   // Determine next status and station in 5-step pipeline: Intake -> Prep -> Grill -> Assembly -> Expedite -> Served
   const getNextAction = () => {
-    switch (order.currentStationId) {
-      case 'intake':
-        return { targetStatus: 'PREPARING' as OrderStatus, targetStation: 'prep' as StationId, label: 'Send to Prep' };
-      case 'prep':
-        return { targetStatus: 'PREPARING' as OrderStatus, targetStation: 'grill' as StationId, label: 'Move to Grill' };
-      case 'grill':
-        return { targetStatus: 'READY' as OrderStatus, targetStation: 'assembly' as StationId, label: 'Plate & Assemble' };
-      case 'assembly':
-        return { targetStatus: 'READY' as OrderStatus, targetStation: 'expedite' as StationId, label: 'Send to Expedite' };
-      case 'expedite':
-        if (order.status === 'SERVED') return null;
-        return { targetStatus: 'SERVED' as OrderStatus, targetStation: 'expedite' as StationId, label: 'Serve & Complete' };
-      default:
-        if (order.status === 'PLACED') {
-          return { targetStatus: 'PREPARING' as OrderStatus, targetStation: 'prep' as StationId, label: 'Send to Prep' };
-        }
-        if (order.status === 'PREPARING') {
-          return { targetStatus: 'READY' as OrderStatus, targetStation: 'assembly' as StationId, label: 'Plate & Assemble' };
-        }
-        if (order.status === 'READY') {
-          return { targetStatus: 'READY' as OrderStatus, targetStation: 'expedite' as StationId, label: 'Send to Expedite' };
-        }
-        return null;
+    if (order.status === 'SERVED') return null;
+
+    const station = order.currentStationId || 'intake';
+
+    if (station === 'intake' || order.status === 'PLACED') {
+      return {
+        targetStatus: 'PREPARING' as OrderStatus,
+        targetStation: 'prep' as StationId,
+        label: `Send KOT ${kotShortId} → Prep`,
+      };
     }
+
+    if (station === 'prep') {
+      return {
+        targetStatus: 'PREPARING' as OrderStatus,
+        targetStation: 'grill' as StationId,
+        label: `Move KOT ${kotShortId} → Grill`,
+      };
+    }
+
+    if (station === 'grill') {
+      return {
+        targetStatus: 'READY' as OrderStatus,
+        targetStation: 'assembly' as StationId,
+        label: `Plate KOT ${kotShortId} → Assembly`,
+      };
+    }
+
+    if (station === 'assembly') {
+      return {
+        targetStatus: 'READY' as OrderStatus,
+        targetStation: 'expedite' as StationId,
+        label: `Send KOT ${kotShortId} → Expedite`,
+      };
+    }
+
+    if (station === 'expedite') {
+      return {
+        targetStatus: 'SERVED' as OrderStatus,
+        targetStation: 'expedite' as StationId,
+        label: `Serve KOT ${kotShortId}`,
+      };
+    }
+
+    return null;
   };
 
   const action = getNextAction();
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex flex-col justify-between overflow-hidden">
-      {/* Ticket Header */}
-      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-mono text-xs font-bold text-slate-400">#{order.id.slice(-6).toUpperCase()}</span>
-            {order.priority === 'VIP' && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
-                <ShieldAlert className="w-3 h-3" /> VIP
-              </span>
-            )}
-            {order.priority === 'HIGH' && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                RUSH
-              </span>
-            )}
-          </div>
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-            <User className="w-3.5 h-3.5 text-slate-400" />
-            {order.customerName}
-          </h3>
-        </div>
+    <div className="bg-white rounded-xl border border-slate-300 shadow-md hover:shadow-xl transition-all flex flex-col justify-between overflow-hidden relative font-mono text-slate-900 select-none p-4 space-y-3">
+      {/* KOT Receipt Top Header */}
+      <div className="text-center space-y-0.5">
+        <p className="text-xs font-black tracking-widest text-slate-600 uppercase">KOT Reciept</p>
+        <div className="border-t border-dashed border-slate-400 my-1" />
+        <h2 className="text-sm font-black tracking-wider text-slate-900 uppercase">The Wesee Pizzas</h2>
+        <p className="text-[10px] text-slate-500 leading-tight">
+          Vijay Nagar, Near by C21 Mall, Indore, Madhya Pradesh, India.
+          <br />
+          Mobile No.: 9876543210
+        </p>
+        <div className="border-t border-dashed border-slate-400 my-1" />
+      </div>
 
-        {/* Live Timer Badge */}
-        <div className={`px-2.5 py-1 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${getTimerBadgeStyle()}`}>
-          <Clock className="w-3.5 h-3.5" />
-          <span>{formattedTimer}</span>
+      {/* Bill No & Date Metadata */}
+      <div className="flex items-center justify-between text-xs font-bold border-b border-dashed border-slate-400 pb-2">
+        <div className="flex items-center gap-1">
+          <span className="text-slate-600">Bill No:</span>
+          <span className="font-black text-xs text-slate-900 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded">
+            {kotShortId}
+          </span>
+          {activeStationId === 'intake' && (
+            <button
+              onClick={() => downloadKot(order)}
+              className="p-1 rounded-md text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors ml-1"
+              title="Download KOT Receipt"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className={`px-2 py-0.5 rounded text-xs font-black flex items-center gap-1 border ${getTimerBadgeStyle()}`}>
+            <Clock className="w-3 h-3" />
+            <span>{formattedTimer}</span>
+          </div>
         </div>
       </div>
 
-      {/* Ticket Items List */}
-      <div className="p-4 flex-1 space-y-2.5">
-        <div className="flex items-center justify-between text-xs font-medium text-slate-400 mb-1">
-          <span>ITEMS ({order.items.reduce((acc, item) => acc + item.quantity, 0)})</span>
-          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-50 text-blue-700 border border-blue-100">
-            {currentStationConfig.name}
+      {/* Customer Name & Staff Assignment */}
+      <div className="flex items-center justify-between text-xs font-bold text-slate-700 bg-slate-50 p-2 rounded border border-slate-200">
+        <span className="truncate">Customer: <strong className="text-slate-900">{order.customerName}</strong></span>
+        {assignedStaffName ? (
+          <span className="text-[10px] font-black bg-blue-100 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded font-mono shrink-0">
+            👤 {assignedStaffName}
           </span>
+        ) : order.assignedUserId ? (
+          <span className="text-[10px] font-black bg-blue-100 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded font-mono shrink-0">
+            👤 Cook Assigned
+          </span>
+        ) : order.currentStationId !== 'intake' && order.status !== 'SERVED' ? (
+          <span className="text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-200 px-1.5 py-0.5 rounded font-mono shrink-0">
+            ⚠️ Unassigned
+          </span>
+        ) : null}
+      </div>
+
+      {/* Highlighted Current KDS Station Status (Intake Receptionist only) */}
+      {activeStationId === 'intake' && (
+        <div className="bg-slate-900 text-amber-300 font-mono font-black text-center text-[10px] py-1 px-3 rounded-lg uppercase tracking-wider shadow-xs">
+          Current Station: {currentStationConfig.name}
+        </div>
+      )}
+
+      {/* Items Table Header & List */}
+      <div className="space-y-2 flex-1">
+        <div className="grid grid-cols-12 text-[11px] font-black text-slate-900 border-b border-dashed border-slate-400 pb-1 uppercase">
+          <span className="col-span-2">S. NO.</span>
+          <span className="col-span-8">ITEM NAME</span>
+          <span className="col-span-2 text-right">QTY.</span>
         </div>
 
-        <div className="space-y-2">
-          {order.items.map((item) => (
-            <div key={item.id} className="flex items-start gap-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-              <span className="w-5 h-5 rounded bg-blue-100 text-blue-700 font-mono font-bold text-xs flex items-center justify-center">
-                {item.quantity}x
-              </span>
-              <div className="flex-1">
-                <p className="text-xs font-bold text-slate-800">{item.name}</p>
-                {item.notes && (
-                  <p className="text-[11px] text-amber-700 italic mt-0.5">Note: {item.notes}</p>
-                )}
+        <div className="space-y-1.5 text-xs font-bold text-slate-800">
+          {order.items.map((item, idx) => (
+            <div key={item.id} className="space-y-0.5">
+              <div className="grid grid-cols-12 items-center">
+                <span className="col-span-2 text-slate-500 font-mono">{idx + 1}</span>
+                <span className="col-span-8 font-black text-slate-900">{item.name}</span>
+                <span className="col-span-2 text-right font-black text-blue-700">{item.quantity}</span>
               </div>
+              {item.notes && (
+                <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded italic ml-6">
+                  Note: {item.notes}
+                </p>
+              )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Ticket Footer & Actions */}
-      <div className="p-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between gap-2">
-        <div className="text-[11px] font-mono text-slate-400">
-          Status: <span className="text-slate-700 font-bold">{order.status}</span>
-        </div>
+      {/* Thank You & Action Footer */}
+      <div className="space-y-2 pt-1 border-t border-dashed border-slate-400 text-center">
+        <p className="text-xs font-black text-slate-700 tracking-wider">Thank You!!!</p>
+        <div className="border-t border-dashed border-slate-400 pt-1" />
 
-        {action && (
+        {action && activeStationId !== 'intake' && (
           <button
             onClick={() => onTransitionOrder(order.id, order.status, action.targetStatus, action.targetStation)}
-            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm shadow-blue-500/20 flex items-center gap-1.5 transition-all"
+            className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-black text-xs shadow-md hover:shadow-lg flex items-center justify-center gap-2 transition-all font-mono active:scale-95 cursor-pointer"
           >
             <span>{action.label}</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight className="w-4 h-4 text-amber-400" />
           </button>
         )}
 
         {order.status === 'SERVED' && (
-          <div className="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Served</span>
+          <div className="w-full py-2 rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-black flex items-center justify-center gap-1.5 font-mono">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span>KOT {kotShortId} Served</span>
           </div>
         )}
       </div>

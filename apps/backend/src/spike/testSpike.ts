@@ -32,9 +32,33 @@ async function runSpikeVerification() {
   client.disconnect();
   await sleep(300);
 
-  globalEventStore.appendEvent(KITCHEN_ID, 'ord-103', 'ORDER_TRANSITIONED', { newStatus: 'PREPARING' });
-  globalEventStore.appendEvent(KITCHEN_ID, 'ord-104', 'ORDER_TRANSITIONED', { newStatus: 'PREPARING' });
-  globalEventStore.appendEvent(KITCHEN_ID, 'ord-105', 'ORDER_TRANSITIONED', { newStatus: 'READY' });
+  globalEventStore.appendEvent({
+    sequenceNumber: 3,
+    eventId: 'evt-3',
+    kitchenId: KITCHEN_ID,
+    orderId: 'ord-103',
+    type: 'ORDER_TRANSITIONED',
+    payload: { newStatus: 'PREPARING', stationId: 'prep' },
+    timestamp: Date.now(),
+  });
+  globalEventStore.appendEvent({
+    sequenceNumber: 4,
+    eventId: 'evt-4',
+    kitchenId: KITCHEN_ID,
+    orderId: 'ord-104',
+    type: 'ORDER_TRANSITIONED',
+    payload: { newStatus: 'PREPARING', stationId: 'prep' },
+    timestamp: Date.now(),
+  });
+  globalEventStore.appendEvent({
+    sequenceNumber: 5,
+    eventId: 'evt-5',
+    kitchenId: KITCHEN_ID,
+    orderId: 'ord-105',
+    type: 'ORDER_TRANSITIONED',
+    payload: { newStatus: 'READY', stationId: 'assembly' },
+    timestamp: Date.now(),
+  });
 
   // Reconnect & sync live
   client.connect();

@@ -114,7 +114,7 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
   };
 
   return (
-    <div className="relative space-y-6">
+    <div className="relative space-y-6 font-sans">
       {/* Admin Sharp Critical Alert Modal */}
       {activeAlerts.length > 0 && (
         <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full bg-slate-900 border-2 border-rose-600 text-white rounded-2xl p-4 shadow-2xl space-y-3 font-mono">
