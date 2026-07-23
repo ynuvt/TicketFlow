@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "build": "tsc && prisma generate",
+    "build": "prisma generate && tsc",
     "test:spike": "tsx src/spike/testSpike.ts",
     "seed": "tsx src/spike/sendSampleData.ts",
     "seed250": "tsx src/spike/seed250.ts",
