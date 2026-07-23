@@ -123,16 +123,6 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          {order.priority === 'VIP' && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-400 text-slate-950 uppercase shadow-xs">
-              VIP
-            </span>
-          )}
-          {order.priority === 'HIGH' && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white uppercase shadow-xs">
-              RUSH
-            </span>
-          )}
           <div className={`px-2 py-0.5 rounded text-xs font-black flex items-center gap-1 border ${getTimerBadgeStyle()}`}>
             <Clock className="w-3 h-3" />
             <span>{formattedTimer}</span>

@@ -5,7 +5,7 @@
 Environment variables loaded from .env
 Prisma schema loaded from prisma\schema.prisma
 Error: 
-EPERM: operation not permitted, rename 'C:\Users\Ansh\ticketFlow\node_modules\.prisma\client\query_engine-windows.dll.node.tmp22036' -> 'C:\Users\Ansh\ticketFlow\node_modules\.prisma\client\query_engine-windows.dll.node'
+EPERM: operation not permitted, rename 'C:\Users\Ansh\ticketFlow\node_modules\.prisma\client\query_engine-windows.dll.node.tmp19572' -> 'C:\Users\Ansh\ticketFlow\node_modules\.prisma\client\query_engine-windows.dll.node'
 
 
 npm error Lifecycle script `build` failed with error:

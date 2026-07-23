@@ -341,12 +341,13 @@ app.post('/api/orders/:id/transition', authorizeRoles(['MANAGER', 'STAFF', 'RECE
 
 // Socket.IO Connection Tracker
 const socketToUser = new Map<string, string>();
+const userSocketCounts = new Map<string, number>();
 
 // Socket.IO Event Handlers
 io.on('connection', (socket: Socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`);
 
-  socket.on('station:join', ({ kitchenId, stationId, userId, userRole, userAssignedStations }: { 
+  socket.on('station:join', async ({ kitchenId, stationId, userId, userRole, userAssignedStations }: { 
     kitchenId: string; 
     stationId: string; 
     userId?: string; 
@@ -367,45 +368,54 @@ io.on('connection', (socket: Socket) => {
     }
 
     if (userId) {
+      const isAlreadyRegistered = socketToUser.has(socket.id);
       socketToUser.set(socket.id, userId);
-      OrderRepository.onlineUserIds.add(userId);
-      io.emit('user:connection_change', { userId, online: true });
-      console.log(`[Socket] User ${userId} joined online.`);
-      // Reconnection handler: restore previous assignments & balance workload
-      orderRepository.handleUserReconnect(userId).then(async () => {
-        // Automatically check and assign waiting pool orders for their joined station
-        if (userRole === 'STAFF') {
-          try {
-            await prisma.$transaction(async (tx) => {
-              const extraEvents = await orderRepository.assignWaitingOrders(tx, stationId, kitchenId);
-              if (extraEvents && extraEvents.length > 0) {
-                console.log(`[Socket] Promoted ${extraEvents.length} waiting orders on user connection.`);
-                for (const extra of extraEvents) {
-                  globalEventStore.appendEvent(extra.event);
-                  io.to(room).emit('order:transition', extra.event);
-                }
-              }
-            });
-          } catch (err: any) {
-            console.error('[Socket] Failed to assign waiting orders on connect:', err.message);
-          }
+
+      if (!isAlreadyRegistered) {
+        const currentCount = userSocketCounts.get(userId) || 0;
+        userSocketCounts.set(userId, currentCount + 1);
+
+        if (currentCount === 0) {
+          OrderRepository.onlineUserIds.add(userId);
+          io.emit('user:connection_change', { userId, online: true });
+          console.log(`[Socket] User ${userId} joined online.`);
+          orderRepository.handleUserReconnect(userId);
+        } else {
+          console.log(`[Socket] User ${userId} connected another socket. Total active sockets: ${currentCount + 1}`);
         }
-      });
+      }
+    }
+
+    // Automatically check and assign waiting pool orders for staff when joining a station
+    if (userRole === 'STAFF' && userId) {
+      try {
+        await prisma.$transaction(async (tx) => {
+          const extraEvents = await orderRepository.assignWaitingOrders(tx, stationId, kitchenId);
+          if (extraEvents && extraEvents.length > 0) {
+            console.log(`[Socket] Promoted ${extraEvents.length} waiting orders on user station join.`);
+            for (const extra of extraEvents) {
+              globalEventStore.appendEvent(extra.event);
+              io.to(room).emit('order:transition', extra.event);
+            }
+          }
+        });
+      } catch (err: any) {
+        console.error('[Socket] Failed to assign waiting orders on station join:', err.message);
+      }
     }
 
     socket.join(room);
     console.log(`[Socket] Client ${socket.id} joined ${room} for station ${stationId}`);
   });
 
-  socket.on('disconnect', () => {
-    const userId = socketToUser.get(socket.id);
+  socket.on('station:drop', (data: { stationId?: string; userId?: string }) => {
+    const userId = data?.userId || socketToUser.get(socket.id);
     if (userId) {
-      socketToUser.delete(socket.id);
+      userSocketCounts.delete(userId);
       OrderRepository.onlineUserIds.delete(userId);
       io.emit('user:connection_change', { userId, online: false });
-      console.log(`[Socket] User ${userId} disconnected. User offline.`);
+      console.log(`[Socket] Station drop simulated for user ${userId}. User marked offline immediately.`);
 
-      // Offline timer logic: reassign active orders after 1 minute if they remain offline
       prisma.order.findMany({
         where: {
           assignedUserId: userId,
@@ -415,8 +425,7 @@ io.on('connection', (socket: Socket) => {
         if (activeOrders.length > 0) {
           const orderIds = activeOrders.map(o => o.id);
           OrderRepository.originalAssignments.set(userId, orderIds);
-          
-          // Clear existing timer if any
+
           const existingTimer = OrderRepository.offlineTimers.get(userId);
           if (existingTimer) clearTimeout(existingTimer);
 
@@ -426,7 +435,48 @@ io.on('connection', (socket: Socket) => {
           OrderRepository.offlineTimers.set(userId, timer);
           console.log(`[Socket] Scheduled 1-minute offline redistribution timer for user ${userId} for orders: ${orderIds.join(', ')}`);
         }
-      }).catch(err => console.error('[Socket] Failed to find active orders for offline cook:', err));
+      }).catch(err => console.error('[Socket] Failed to find active orders on station:drop:', err));
+    }
+  });
+
+  socket.on('disconnect', () => {
+    const userId = socketToUser.get(socket.id);
+    if (userId) {
+      socketToUser.delete(socket.id);
+      
+      const currentCount = userSocketCounts.get(userId) || 0;
+      if (currentCount > 1) {
+        userSocketCounts.set(userId, currentCount - 1);
+        console.log(`[Socket] User ${userId} disconnected one socket. Remaining active sockets: ${currentCount - 1}`);
+      } else {
+        userSocketCounts.delete(userId);
+        OrderRepository.onlineUserIds.delete(userId);
+        io.emit('user:connection_change', { userId, online: false });
+        console.log(`[Socket] User ${userId} disconnected. User offline.`);
+
+        // Offline timer logic: reassign active orders after 1 minute if they remain offline
+        prisma.order.findMany({
+          where: {
+            assignedUserId: userId,
+            status: { not: 'SERVED' }
+          }
+        }).then((activeOrders) => {
+          if (activeOrders.length > 0) {
+            const orderIds = activeOrders.map(o => o.id);
+            OrderRepository.originalAssignments.set(userId, orderIds);
+            
+            // Clear existing timer if any
+            const existingTimer = OrderRepository.offlineTimers.get(userId);
+            if (existingTimer) clearTimeout(existingTimer);
+
+            const timer = setTimeout(() => {
+              orderRepository.redistributeOfflineUserOrders(userId);
+            }, 60000); // 1 minute
+            OrderRepository.offlineTimers.set(userId, timer);
+            console.log(`[Socket] Scheduled 1-minute offline redistribution timer for user ${userId} for orders: ${orderIds.join(', ')}`);
+          }
+        }).catch(err => console.error('[Socket] Failed to find active orders for offline cook:', err));
+      }
     }
     console.log(`[Socket] Client disconnected: ${socket.id}`);
   });

@@ -64,17 +64,24 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
   const stationNetworksRef = useRef<StationNetworkMap>(DEFAULT_STATION_NETWORKS);
   const printKotEnabledRef = useRef<boolean>(false);
 
-  // Sync refs with state
-  lastSeqRef.current = lastProcessedSequence;
+  // Sync refs with state (but NEVER overwrite lastSeqRef — it is managed synchronously)
   statusRef.current = connectionStatus;
   stationNetworksRef.current = stationNetworks;
   printKotEnabledRef.current = printKotEnabled;
+
+  const activeStationIdRef = useRef(activeStationId);
+  activeStationIdRef.current = activeStationId;
+
+  const handleIncomingEventRef = useRef<any>(null);
+  const handleReplayResponseRef = useRef<any>(null);
 
   // Apply single sequence event to order state projection
   const applyEventToOrders = useCallback((event: KitchenEvent) => {
     setOrders((prevOrders) => {
       const orderMap = new Map<string, Order>(prevOrders.map((o) => [o.id, o]));
-      const payload = event.payload;
+      const payload = event.payload
+        ? (typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload)
+        : {};
 
       if (event.type === 'ORDER_CREATED') {
         const newOrder: Order = {
@@ -145,17 +152,33 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     return stationNetworksRef.current[key] ?? true;
   }, []);
 
-  // Request replay from backend
-  const requestReplay = useCallback(() => {
+  // Request replay from backend — uses refs only, so the identity is stable across re-renders
+  const requestReplay = useCallback((forceFullReplay?: boolean) => {
     if (!socketRef.current || !socketRef.current.connected) return;
+
+    if (forceFullReplay) {
+      console.log(`[KDS Engine] Forcing full sequence replay from 0...`);
+      lastSeqRef.current = 0;
+      setLastProcessedSequence(0);
+      setOrders([]);
+      setEvents([]);
+      setConnectionStatus('SYNCING');
+      socketRef.current.emit('order:replayRequest', {
+        kitchenId: KITCHEN_ID,
+        stationId: activeStationIdRef.current,
+        lastProcessedSequence: 0,
+      });
+      return;
+    }
+
     setConnectionStatus('SYNCING');
     console.log(`[KDS Engine] Requesting sequence replay from seq ${lastSeqRef.current}...`);
     socketRef.current.emit('order:replayRequest', {
       kitchenId: KITCHEN_ID,
-      stationId: activeStationId,
+      stationId: activeStationIdRef.current,
       lastProcessedSequence: lastSeqRef.current,
     });
-  }, [activeStationId]);
+  }, []);
 
   // Handle incoming live event
   const handleIncomingEvent = useCallback(
@@ -171,14 +194,18 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
 
       if (event.sequenceNumber === lastSeqRef.current + 1) {
         applyEventToOrders(event);
+        lastSeqRef.current = event.sequenceNumber;
+        setLastProcessedSequence(event.sequenceNumber);
         
         // Auto print KOT on new live order creation if enabled on Intake Dashboard
         if (
           event.type === 'ORDER_CREATED' &&
-          activeStationId === 'intake' &&
+          activeStationIdRef.current === 'intake' &&
           printKotEnabledRef.current
         ) {
-          const payload = event.payload;
+          const payload = event.payload
+            ? (typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload)
+            : {};
           const newOrder: Order = {
             id: event.orderId,
             kitchenId: event.kitchenId,
@@ -205,7 +232,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         requestReplay();
       }
     },
-    [activeStationId, isStationOnline, applyEventToOrders, requestReplay]
+    [applyEventToOrders, requestReplay]
   );
 
   // Handle replay response payload
@@ -215,10 +242,27 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         `[KDS Engine] Replay response received. Replaying ${response.events.length} missed events (Seq #${response.fromSequence} -> #${response.toSequence})`
       );
 
+      // Self-healing: if the server sequence number is less than client state, the DB was cleared/restored.
+      // Clear local state and request a full fresh replay.
+      if (response.toSequence < lastSeqRef.current) {
+        console.warn(
+          `[KDS Engine] Server sequence mismatch! Client has Seq #${lastSeqRef.current}, Server has Seq #${response.toSequence}. Resetting state and requesting full replay...`
+        );
+        setOrders([]);
+        setEvents([]);
+        lastSeqRef.current = 0;
+        setLastProcessedSequence(0);
+        requestReplay(true);
+        return;
+      }
+
+      let currentSeq = lastSeqRef.current;
+
       const sortedReplayed = [...response.events].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
       for (const evt of sortedReplayed) {
-        if (evt.sequenceNumber > lastSeqRef.current) {
+        if (evt.sequenceNumber > currentSeq) {
           applyEventToOrders(evt);
+          currentSeq = evt.sequenceNumber;
         }
       }
 
@@ -226,17 +270,22 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
       liveBufferRef.current = [];
 
       for (const evt of sortedBuffer) {
-        if (evt.sequenceNumber > lastSeqRef.current) {
-          if (evt.sequenceNumber === lastSeqRef.current + 1) {
+        if (evt.sequenceNumber > currentSeq) {
+          if (evt.sequenceNumber === currentSeq + 1) {
             applyEventToOrders(evt);
-          } else if (evt.sequenceNumber > lastSeqRef.current + 1) {
+            currentSeq = evt.sequenceNumber;
+          } else if (evt.sequenceNumber > currentSeq + 1) {
             liveBufferRef.current.push(evt);
             requestReplay();
+            lastSeqRef.current = currentSeq;
+            setLastProcessedSequence(currentSeq);
             return;
           }
         }
       }
 
+      lastSeqRef.current = currentSeq;
+      setLastProcessedSequence(currentSeq);
       setConnectionStatus('ONLINE');
       setReconnectedCount((prev) => prev + 1);
     },
@@ -245,7 +294,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
 
   // Fetch print settings on mount
   useEffect(() => {
-    fetch('http://localhost:4000/api/settings')
+    fetch(`${SOCKET_URL}/api/settings`)
       .then((res) => res.json())
       .then((data) => {
         if (data.printKotEnabled !== undefined) {
@@ -255,9 +304,38 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
       .catch((err) => console.error('[Socket] Failed to fetch settings:', err));
   }, []);
 
+  handleIncomingEventRef.current = handleIncomingEvent;
+  handleReplayResponseRef.current = handleReplayResponse;
+
+  // Listen for tab focus/visibility changes to sync KDS state instantly
+  useEffect(() => {
+    const handleSyncOnFocus = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[KDS Engine] Tab/Window focused. Checking socket state...');
+        if (socketRef.current) {
+          if (!socketRef.current.connected) {
+            console.log('[KDS Engine] Socket disconnected. Reconnecting immediately...');
+            socketRef.current.connect();
+          } else {
+            console.log('[KDS Engine] Socket online. Fetching missed events...');
+            requestReplay();
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleSyncOnFocus);
+    window.addEventListener('focus', handleSyncOnFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleSyncOnFocus);
+      window.removeEventListener('focus', handleSyncOnFocus);
+    };
+  }, [requestReplay]);
+
   // Initialize socket connection
   useEffect(() => {
-    const isStationOnline = stationNetworksRef.current[activeStationId as StationId] !== false;
+    const isStationOnline = stationNetworksRef.current[activeStationIdRef.current as StationId] !== false;
     const socket = io(SOCKET_URL, {
       autoConnect: isStationOnline,
       reconnectionAttempts: 10,
@@ -266,9 +344,17 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
 
     socket.on('connect', () => {
       console.log(`[Socket] Connected to backend on ${SOCKET_URL}`);
+      
+      const isOnline = stationNetworksRef.current[activeStationIdRef.current as StationId] !== false;
+      if (!isOnline) {
+        console.log(`[KDS Engine] Socket connected, but station '${activeStationIdRef.current}' is simulated offline. Disconnecting socket.`);
+        socket.disconnect();
+        return;
+      }
+
       socket.emit('station:join', { 
         kitchenId: KITCHEN_ID, 
-        stationId: activeStationId,
+        stationId: activeStationIdRef.current,
         userId: user?.id,
         userRole: user?.role,
         userAssignedStations: user?.assignedStations,
@@ -280,7 +366,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         setConnectionStatus('ONLINE');
         socket.emit('order:replayRequest', {
           kitchenId: KITCHEN_ID,
-          stationId: activeStationId,
+          stationId: activeStationIdRef.current,
           lastProcessedSequence: 0,
         });
       }
@@ -292,7 +378,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     });
 
     socket.on('order:transition', (event: KitchenEvent) => {
-      handleIncomingEvent(event);
+      handleIncomingEventRef.current(event);
     });
 
     socket.on('settings:update', (data: { printKotEnabled: boolean }) => {
@@ -301,7 +387,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     });
 
     socket.on('order:replayResponse', (response: ReplayResponsePayload) => {
-      handleReplayResponse(response);
+      handleReplayResponseRef.current(response);
     });
 
     socket.on('order:reset', () => {
@@ -325,7 +411,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     });
 
     // Initial fetch of online users
-    fetch('http://localhost:4000/api/users/online')
+    fetch(`${SOCKET_URL}/api/users/online`)
       .then((res) => res.json())
       .then((data) => {
         if (data.onlineUserIds) {
@@ -335,9 +421,28 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
       .catch((err) => console.error('[Socket] Failed to fetch online users list:', err));
 
     return () => {
+      console.log('[KDS Engine] Disconnecting persistent socket...');
       socket.disconnect();
     };
-  }, [activeStationId, handleIncomingEvent, handleReplayResponse, requestReplay, user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Join the active station whenever activeStationId changes (without disconnecting socket!)
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (socket && socket.connected) {
+      console.log(`[KDS Engine] Station switched to '${activeStationId}'. Emitting station:join...`);
+      socket.emit('station:join', { 
+        kitchenId: KITCHEN_ID, 
+        stationId: activeStationId,
+        userId: user?.id,
+        userRole: user?.role,
+        userAssignedStations: user?.assignedStations,
+      });
+      // Sync events for the new station
+      requestReplay();
+    }
+  }, [activeStationId, user, requestReplay]);
 
   // Methods to interact with server
   const createOrder = useCallback(
@@ -396,7 +501,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         const isTurningOn = updated[stationId];
         if (isTurningOn) {
           console.log(`[Network Simulation] Station '${stationId}' network turned ON. Triggering replay sync...`);
-          if (activeStationId === stationId) {
+          if (activeStationIdRef.current === stationId) {
             socketRef.current?.connect();
           }
           setTimeout(() => {
@@ -404,7 +509,11 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
           }, 100);
         } else {
           console.log(`[Network Simulation] Station '${stationId}' network turned OFFLINE.`);
-          if (activeStationId === stationId) {
+          if (activeStationIdRef.current === stationId) {
+            socketRef.current?.emit('station:drop', {
+              stationId,
+              userId: user?.id,
+            });
             socketRef.current?.disconnect();
           }
         }
@@ -412,7 +521,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         return updated;
       });
     },
-    [activeStationId, requestReplay]
+    [requestReplay]
   );
 
   // Toggle all stations global network ON/OFF
@@ -445,7 +554,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     const newValue = !printKotEnabled;
     setPrintKotEnabled(newValue);
     try {
-      await fetch('http://localhost:4000/api/settings', {
+      await fetch(`${SOCKET_URL}/api/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ printKotEnabled: newValue }),

@@ -307,7 +307,7 @@ function AppContent() {
           title={headerMeta.title}
           subtitle={headerMeta.subtitle}
           isOnline={isOnline}
-          onRefresh={requestReplay}
+          onRefresh={() => requestReplay(true)}
           onOpenAuditLog={() => setIsAuditLogOpen(true)}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         />

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Order, OrderStatus, StationId, KitchenEvent } from '@ticketflow/types';
 import { StationNetworkMap } from '../hooks/useSocketKDS';
 import { STATIONS } from '../types/kds';
+import { useAuth } from '../context/AuthContext';
 import {
   ListFilter,
   CheckCircle2,
@@ -16,6 +17,7 @@ import {
   ArrowRight,
   User,
   Receipt,
+  Trash2,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -33,6 +35,58 @@ interface DashboardViewProps {
   onTogglePrintKot?: () => void;
 }
 
+const SEED_CUSTOMERS = [
+  'Aarav Sharma', 'Aditi Verma', 'Vihaan Patel', 'Ananya Iyer',
+  'Reyansh Gupta', 'Diya Nair', 'Sai Prasad', 'Riya Sen',
+  'Arjun Mehta', 'Kavya Rao', 'Ishaan Joshi', 'Myra Kapoor',
+  'Aanya Chawla', 'Krishna Murthy', 'Sai Ram', 'Rohan Bhat',
+  'Devendra Singh', 'Pooja Hegde', 'Kabir Das', 'Sneha Reddy'
+];
+
+const MEAL_COMBINATIONS = [
+  {
+    comboName: 'Paneer Tikka Pizza & Drink',
+    priority: 'NORMAL' as const,
+    estimatedPrepTime: 10,
+    stationId: 'intake' as const,
+    items: [
+      { id: 'item-1', name: 'Paneer Tikka Pizza (Veg)', quantity: 1, notes: 'Extra tandoori sauce' },
+      { id: 'item-2', name: 'Chilled Mango Lassi', quantity: 1, notes: 'Less sugar' },
+    ],
+  },
+  {
+    comboName: 'Chicken Feast Combo Meal',
+    priority: 'NORMAL' as const,
+    estimatedPrepTime: 12,
+    stationId: 'intake' as const,
+    items: [
+      { id: 'item-3', name: 'Chicken Tikka Supreme Pizza', quantity: 1, notes: 'Double chicken tikka, thin crust' },
+      { id: 'item-4', name: 'Crispy Chicken Zinger Burger', quantity: 1, notes: 'Spicy mayo & lettuce' },
+      { id: 'item-5', name: 'Cold Coffee', quantity: 2 },
+    ],
+  },
+  {
+    comboName: 'Royal Veggie Burger Special',
+    priority: 'NORMAL' as const,
+    estimatedPrepTime: 8,
+    stationId: 'intake' as const,
+    items: [
+      { id: 'item-6', name: 'Classic Veggie Herb Burger', quantity: 1, notes: 'Whole wheat bun' },
+      { id: 'item-7', name: 'Peri Peri Potato Wedges', quantity: 1 },
+    ],
+  },
+  {
+    comboName: 'Corn & Cheese Overload Pizza',
+    priority: 'NORMAL' as const,
+    estimatedPrepTime: 9,
+    stationId: 'intake' as const,
+    items: [
+      { id: 'item-8', name: 'Golden Corn & Cheese Margherita Pizza', quantity: 1, notes: 'Fresh mozzarella & basil' },
+      { id: 'item-9', name: 'Masala French Fries', quantity: 1 },
+    ],
+  },
+];
+
 export const DashboardView: React.FC<DashboardViewProps> = ({
   orders,
   events,
@@ -47,7 +101,81 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   printKotEnabled = false,
   onTogglePrintKot,
 }) => {
+  const { authFetch } = useAuth();
   const [lastUpdatedTime, setLastUpdatedTime] = useState<string>('');
+  const [seedCount, setSeedCount] = useState<number | ''>(10);
+  const [seedingProgress, setSeedingProgress] = useState<number | null>(null);
+  const [isSeeding, setIsSeeding] = useState<boolean>(false);
+  const seedingStopRef = React.useRef<boolean>(false);
+
+  const handleSeedOrders = async () => {
+    if (isSeeding) return;
+    setIsSeeding(true);
+    setSeedingProgress(0);
+    seedingStopRef.current = false;
+
+    const countToSeed = Math.max(1, typeof seedCount === 'number' ? seedCount : 10);
+
+    for (let i = 0; i < countToSeed; i++) {
+      if (seedingStopRef.current) {
+        break;
+      }
+
+      const customer = SEED_CUSTOMERS[Math.floor(Math.random() * SEED_CUSTOMERS.length)];
+      const combo = MEAL_COMBINATIONS[Math.floor(Math.random() * MEAL_COMBINATIONS.length)];
+
+      const payload = {
+        customerName: `${customer} - ${combo.comboName}`,
+        priority: combo.priority,
+        estimatedPrepTime: combo.estimatedPrepTime,
+        stationId: combo.stationId,
+        items: combo.items,
+      };
+
+      try {
+        await authFetch('http://localhost:4000/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+        setSeedingProgress(i + 1);
+      } catch (err) {
+        console.error('Failed to post seed order:', err);
+      }
+
+      // Pacing delay (300ms)
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+
+    setIsSeeding(false);
+    setSeedingProgress(null);
+  };
+
+  const handleStopSeeding = () => {
+    seedingStopRef.current = true;
+    setIsSeeding(false);
+  };
+
+  const handleClearDb = async () => {
+    if (!window.confirm('Are you sure you want to clear the entire database? All orders will be permanently deleted.')) {
+      return;
+    }
+    try {
+      const res = await authFetch('http://localhost:4000/api/db/clear', {
+        method: 'POST',
+      });
+      if (res.ok) {
+        alert('Database cleared successfully!');
+      } else {
+        alert('Failed to clear database.');
+      }
+    } catch (err: any) {
+      alert('Error clearing database: ' + err.message);
+    }
+  };
+
 
   useEffect(() => {
     setLastUpdatedTime(new Date().toLocaleTimeString());
@@ -132,8 +260,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Top 4 Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {/* Top 3 Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         {/* Active Tickets */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-5 flex items-start justify-between shadow-sm">
           <div>
@@ -167,18 +295,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
             <Activity className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* VIP / Rush Tickets */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 flex items-start justify-between shadow-sm">
-          <div>
-            <p className="text-xs font-semibold text-slate-500">VIP / Rush Tickets</p>
-            <p className="text-3xl font-bold text-slate-900 mt-1">{vipOrders.length}</p>
-            <p className="text-xs text-slate-400 mt-1">High priority</p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-            <Zap className="w-5 h-5" />
           </div>
         </div>
       </div>
@@ -215,6 +331,69 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
+        {/* Seeding & DB Control Bar */}
+        <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <div className="flex items-center gap-2">
+              <label htmlFor="seed-orders-count" className="text-xs font-semibold text-slate-600 shrink-0">
+                Seed Count:
+              </label>
+              <input
+                id="seed-orders-count"
+                type="number"
+                min="1"
+                max="500"
+                value={seedCount}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    setSeedCount('');
+                  } else {
+                    const parsed = parseInt(val, 10);
+                    setSeedCount(isNaN(parsed) ? '' : parsed);
+                  }
+                }}
+                disabled={isSeeding}
+                className="w-16 px-2.5 py-1.5 text-xs font-bold text-slate-900 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-white disabled:bg-slate-100"
+              />
+            </div>
+
+            <button
+              onClick={handleSeedOrders}
+              disabled={isSeeding}
+              className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-xs"
+            >
+              <Activity className="w-3.5 h-3.5 animate-pulse" />
+              <span>{isSeeding ? 'Seeding...' : 'Seed Orders'}</span>
+            </button>
+
+            {isSeeding && (
+              <button
+                onClick={handleStopSeeding}
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs animate-bounce"
+              >
+                <WifiOff className="w-3.5 h-3.5" />
+                <span>Stop Seeding</span>
+              </button>
+            )}
+
+            {isSeeding && seedingProgress !== null && (
+              <span className="text-xs font-bold text-indigo-600 animate-pulse bg-indigo-50 px-2.5 py-1 rounded-md">
+                Progress: {seedingProgress} / {seedCount}
+              </span>
+            )}
+          </div>
+
+          <button
+            onClick={handleClearDb}
+            disabled={isSeeding}
+            className="px-4 py-2 rounded-lg bg-rose-50 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 text-rose-700 text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Clear Database</span>
+          </button>
+        </div>
+
         {/* 5 Station Status Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {stationList.map((st) => {
@@ -223,29 +402,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             return (
               <div
                 key={st.id}
-                className="bg-white border border-slate-200/80 rounded-xl p-4 flex flex-col justify-between space-y-4 hover:border-slate-300 transition-all shadow-xs"
+                className="bg-white border border-slate-200/80 rounded-xl p-4 hover:border-slate-300 transition-all shadow-xs"
               >
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <h3 className="text-xs font-bold text-slate-900">{st.title}</h3>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
-                      }`}
-                    >
-                      {isOnline ? 'ONLINE' : 'OFFLINE'}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">{st.desc}</p>
+                <div className="flex items-center justify-between mb-1.5">
+                  <h3 className="text-xs font-bold text-slate-900">{st.title}</h3>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                    }`}
+                  >
+                    {isOnline ? 'ONLINE' : 'OFFLINE'}
+                  </span>
                 </div>
-
-                <button
-                  onClick={() => onToggleStationNetwork(st.id)}
-                  className="w-full py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  <WifiOff className="w-3.5 h-3.5 text-slate-500" />
-                  <span>{isOnline ? 'Go Offline' : 'Go Online'}</span>
-                </button>
+                <p className="text-[11px] text-slate-500 leading-relaxed">{st.desc}</p>
               </div>
             );
           })}
@@ -276,7 +445,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <th className="pb-3 font-semibold">ORDER ID</th>
                   <th className="pb-3 font-semibold">CUSTOMER</th>
                   <th className="pb-3 font-semibold">ITEMS</th>
-                  <th className="pb-3 font-semibold">PRIORITY</th>
                   <th className="pb-3 font-semibold">CURRENT STATION</th>
                   <th className="pb-3 font-semibold">STATUS</th>
                   <th className="pb-3 font-semibold">TIME IN QUEUE</th>
@@ -295,19 +463,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </td>
                     <td className="py-3.5 text-slate-600">
                       {ord.items.map((i) => `${i.quantity}x ${i.name}`).join(', ')}
-                    </td>
-                    <td className="py-3.5">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          ord.priority === 'VIP'
-                            ? 'bg-amber-100 text-amber-800'
-                            : ord.priority === 'HIGH'
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {ord.priority}
-                      </span>
                     </td>
                     <td className="py-3.5 font-bold uppercase text-purple-700">
                       {STATIONS[ord.currentStationId]?.name || ord.currentStationId}

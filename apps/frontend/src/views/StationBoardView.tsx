@@ -98,8 +98,8 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
           o.assignedUserId === `user-${user.username}`
         );
       } else {
-        // Manager/Receptionist sees all assigned orders at S
-        return !!o.assignedUserId;
+        // Manager/Receptionist sees all orders at S (assigned or unassigned)
+        return true;
       }
     })
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -323,13 +323,7 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
                     return (
                       <div
                         key={o.id}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-bold shrink-0 shadow-sm transition-transform hover:scale-105 ${
-                          o.priority === 'VIP'
-                            ? 'bg-amber-50 text-amber-800 border-amber-300'
-                            : o.priority === 'HIGH'
-                            ? 'bg-rose-50 text-rose-800 border-rose-300'
-                            : 'bg-slate-50 text-slate-700 border-slate-200'
-                        }`}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-bold shrink-0 shadow-sm transition-transform hover:scale-105 bg-slate-50 text-slate-700 border-slate-200"
                         title={`${o.customerName} - ${totalQty} items`}
                       >
                         <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
