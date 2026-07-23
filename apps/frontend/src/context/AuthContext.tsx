@@ -20,6 +20,7 @@ interface AuthContextType {
 }
 
 const SESSION_STORAGE_USER_KEY = 'ticketflow_auth_user';
+const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:4000';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -38,7 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (username: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      const res = await fetch('http://localhost:4000/api/auth/login', {
+      const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -125,7 +126,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers.set('x-user-id', user.id);
       headers.set('x-user-role', user.role);
     }
-    return fetch(url, { ...options, headers });
+    let targetUrl = url;
+    if (url.startsWith('http://localhost:4000')) {
+      targetUrl = url.replace('http://localhost:4000', BACKEND_URL);
+    } else if (url.startsWith('/api')) {
+      targetUrl = `${BACKEND_URL}${url}`;
+    }
+    return fetch(targetUrl, { ...options, headers });
   };
 
   return (
