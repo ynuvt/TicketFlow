@@ -21,9 +21,10 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
   onToggleStationNetwork,
   onlineUserIds,
 }) => {
-  const { authFetch } = useAuth();
+  const { user, authFetch } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState<Set<string>>(new Set());
+  const [minimizedAlerts, setMinimizedAlerts] = useState<Set<string>>(new Set());
   const stationKeys: StationId[] = ['intake', 'prep', 'grill', 'assembly', 'expedite'];
 
   useEffect(() => {
@@ -83,7 +84,7 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
 
   // Re-enable alerts automatically if cooks or stations reconnect
   useEffect(() => {
-    setAcknowledgedAlerts((prev) => {
+    const cleanupSet = (prev: Set<string>) => {
       const next = new Set(prev);
       let changed = false;
 
@@ -102,7 +103,10 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
       });
 
       return changed ? next : prev;
-    });
+    };
+
+    setAcknowledgedAlerts((prev) => cleanupSet(prev));
+    setMinimizedAlerts((prev) => cleanupSet(prev));
   }, [onlineUserIds, stationNetworks, users]);
 
   const handleAcknowledgeAlert = (key: string) => {
@@ -113,32 +117,75 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
     });
   };
 
+  const handleMinimizeAlerts = () => {
+    setMinimizedAlerts(new Set(activeAlerts.map((a) => a.key)));
+  };
+
+  const isMaximized = activeAlerts.some((alert) => !minimizedAlerts.has(alert.key));
+
   return (
     <div className="relative space-y-6">
       {/* Admin Sharp Critical Alert Modal */}
       {activeAlerts.length > 0 && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full bg-slate-900 border-2 border-rose-600 text-white rounded-2xl p-4 shadow-2xl space-y-3 font-mono">
-          <div className="flex items-center gap-2 text-rose-500 font-black text-xs">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-            <span className="uppercase tracking-wider">CRITICAL NETWORK ALERT</span>
-          </div>
-          <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-            {activeAlerts.map((alert) => (
-              <div key={alert.key} className="flex items-start justify-between gap-3 text-[11px] bg-slate-800 p-2 rounded-lg border border-slate-700 font-bold leading-normal">
-                <span>{alert.message}</span>
+        isMaximized ? (
+          /* BIG Centered Alert Modal */
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-slate-900 border-4 border-rose-600 text-white rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 font-mono animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between border-b border-rose-900/50 pb-3">
+                <div className="flex items-center gap-2 text-rose-500 font-black text-sm">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                  <span className="uppercase tracking-wider">CRITICAL NETWORK ALERT</span>
+                </div>
                 <button
-                  onClick={() => handleAcknowledgeAlert(alert.key)}
-                  className="text-[10px] text-amber-300 hover:text-amber-100 uppercase shrink-0 font-black cursor-pointer bg-transparent border-0"
+                  onClick={handleMinimizeAlerts}
+                  className="text-xs bg-slate-800 hover:bg-slate-700 text-rose-400 hover:text-rose-200 border border-rose-800 rounded px-2.5 py-1 transition-all cursor-pointer font-bold uppercase"
                 >
-                  [Dismiss]
+                  Minimize Alert
                 </button>
               </div>
-            ))}
+              <div className="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1">
+                {activeAlerts.map((alert) => (
+                  <div key={alert.key} className="flex items-start justify-between gap-4 text-xs bg-slate-800/80 p-3.5 rounded-xl border border-slate-700 font-bold leading-normal">
+                    <span>{alert.message}</span>
+                    <button
+                      onClick={() => handleAcknowledgeAlert(alert.key)}
+                      className="text-xs text-amber-300 hover:text-amber-100 uppercase shrink-0 font-black cursor-pointer bg-transparent border-0"
+                    >
+                      [Dismiss]
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[10px] text-slate-400 font-sans leading-normal">
+                Tickets on offline stations or assigned to offline cooks turn red below.
+              </div>
+            </div>
           </div>
-          <div className="text-[9px] text-slate-400 font-sans leading-normal">
-            Tickets on offline stations or assigned to offline cooks turn red below.
+        ) : (
+          /* Minimized bottom-right alert */
+          <div className="fixed bottom-6 right-6 z-40 max-w-sm w-full bg-slate-900 border-2 border-rose-600 text-white rounded-2xl p-4 shadow-2xl space-y-3 font-mono">
+            <div className="flex items-center gap-2 text-rose-500 font-black text-xs">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+              <span className="uppercase tracking-wider">CRITICAL NETWORK ALERT</span>
+            </div>
+            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+              {activeAlerts.map((alert) => (
+                <div key={alert.key} className="flex items-start justify-between gap-3 text-[11px] bg-slate-800 p-2 rounded-lg border border-slate-700 font-bold leading-normal">
+                  <span>{alert.message}</span>
+                  <button
+                    onClick={() => handleAcknowledgeAlert(alert.key)}
+                    className="text-[10px] text-amber-300 hover:text-amber-100 uppercase shrink-0 font-black cursor-pointer bg-transparent border-0"
+                  >
+                    [Dismiss]
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="text-[9px] text-slate-400 font-sans leading-normal">
+              Tickets on offline stations or assigned to offline cooks turn red below.
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {/* Main Grid columns */}
@@ -148,7 +195,7 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
           const isSimulatedOnline = stationNetworks[stId];
           const isCollectivelyOffline = isStationCollectivelyOffline(stId);
 
-          const columnOrders = isSimulatedOnline
+          const columnOrders = (isSimulatedOnline || user?.role === 'MANAGER' || user?.role === 'RECEPTIONIST')
             ? orders
                 .filter((o) => {
                   if ((o.status as string) === 'SERVED') return false;
@@ -200,7 +247,7 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
 
               {/* Column Order Tickets */}
               <div className="flex-1 space-y-4 overflow-y-auto max-h-[70vh]">
-                {!isSimulatedOnline ? (
+                {!isSimulatedOnline && (user?.role !== 'MANAGER' && user?.role !== 'RECEPTIONIST') ? (
                   <div className="py-16 text-center text-xs font-medium text-rose-500 border border-dashed border-rose-300 rounded-xl bg-rose-50/60 p-4 space-y-2">
                     <WifiOff className="w-6 h-6 mx-auto text-rose-400 animate-pulse" />
                     <p className="font-bold">Station Network Offline</p>
@@ -215,7 +262,7 @@ export const OverviewBoardView: React.FC<OverviewBoardViewProps> = ({
                 ) : (
                   columnOrders.map((order) => {
                     const isCookOffline = order.assignedUserId ? !onlineUserIds.has(order.assignedUserId) : false;
-                    const highlightRed = isCookOffline || isCollectivelyOffline;
+                    const highlightRed = isCookOffline || isCollectivelyOffline || !isSimulatedOnline;
                     return (
                       <div 
                         key={order.id} 

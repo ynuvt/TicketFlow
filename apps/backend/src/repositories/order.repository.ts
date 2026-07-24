@@ -897,6 +897,44 @@ export class OrderRepository {
     // via assignWaitingOrders (called from the station:join handler).
     // We do NOT steal in-progress orders from other cooks — they may have already started preparing them.
   }
+
+  public async modifyOrder(orderId: string, input: {
+    customerName: string;
+    items: Array<{ name: string; quantity: number; notes?: string }>;
+    estimatedPrepTime: number;
+    currentStationId: string;
+    priority: 'NORMAL' | 'HIGH' | 'VIP';
+  }) {
+    return OrderRepository.enqueueRouting(() =>
+      prisma.$transaction(async (tx: any) => {
+        await tx.orderItem.deleteMany({
+          where: { orderId },
+        });
+
+        const order = await tx.order.update({
+          where: { id: orderId },
+          data: {
+            customerName: input.customerName,
+            estimatedPrepTime: input.estimatedPrepTime,
+            currentStationId: input.currentStationId,
+            priority: input.priority,
+            orderItems: {
+              create: input.items.map((item) => ({
+                name: item.name,
+                quantity: item.quantity,
+                notes: item.notes || null,
+              })),
+            },
+          },
+          include: {
+            orderItems: true,
+          },
+        });
+
+        return order;
+      })
+    );
+  }
 }
 
 export const orderRepository = new OrderRepository();

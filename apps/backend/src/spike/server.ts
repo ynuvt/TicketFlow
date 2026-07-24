@@ -560,6 +560,62 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
+  socket.on('order:update', async (data: {
+    orderId: string;
+    customerName: string;
+    items: Array<{ name: string; quantity: number; notes?: string }>;
+    estimatedPrepTime: number;
+    stationId: string;
+    priority: 'NORMAL' | 'HIGH' | 'VIP';
+    kitchenId?: string;
+    userId?: string;
+    userRole?: string;
+  }) => {
+    const kitchenId = data.kitchenId || DEFAULT_KITCHEN_ID;
+    const { userRole, userId } = data;
+
+    if (userRole && userRole !== 'MANAGER' && userRole !== 'RECEPTIONIST') {
+      socket.emit('order:error', { message: 'Forbidden: Insufficient privileges' });
+      return;
+    }
+
+    try {
+      const updatedOrder = await orderRepository.modifyOrder(data.orderId, {
+        customerName: data.customerName,
+        items: data.items,
+        estimatedPrepTime: data.estimatedPrepTime,
+        currentStationId: data.stationId,
+        priority: data.priority || 'NORMAL',
+      });
+
+      const clientOrder = {
+        id: updatedOrder.id,
+        kitchenId: updatedOrder.kitchenId,
+        customerName: updatedOrder.customerName,
+        items: updatedOrder.orderItems.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          notes: item.notes || undefined,
+        })),
+        priority: updatedOrder.priority,
+        estimatedPrepTime: updatedOrder.estimatedPrepTime,
+        status: updatedOrder.status,
+        currentStationId: updatedOrder.currentStationId,
+        assignedUserId: updatedOrder.assignedUserId,
+        createdAt: new Date(updatedOrder.createdAt).getTime(),
+        updatedAt: new Date(updatedOrder.updatedAt).getTime(),
+      };
+
+      const room = `kitchen:${kitchenId}`;
+      io.to(room).emit('order:update', clientOrder);
+      console.log(`[Socket] Order ${data.orderId} updated by user ${userId}`);
+    } catch (err: any) {
+      console.error('[Socket] Failed to update order in DB:', err.message);
+      socket.emit('order:error', { message: err.message });
+    }
+  });
+
   socket.on(
     'order:transition',
     async (data: {

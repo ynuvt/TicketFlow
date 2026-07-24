@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Order, OrderStatus, StationId } from '@ticketflow/types';
 import { STATIONS } from '../types/kds';
-import { Clock, ArrowRight, CheckCircle2, User, ShieldAlert, Receipt, Download, Trash2 } from 'lucide-react';
+import { Clock, ArrowRight, CheckCircle2, User, ShieldAlert, Receipt, Download, Trash2, Pencil } from 'lucide-react';
 import { downloadKot } from '../utils/kot';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,9 +11,10 @@ interface OrderTicketProps {
   activeStationId?: StationId | 'overview' | 'manager';
   assignedStaffName?: string;
   onDeleteOrder?: (orderId: string) => void;
+  onEditOrder?: (order: Order) => void;
 }
 
-export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrder, activeStationId, assignedStaffName, onDeleteOrder }) => {
+export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrder, activeStationId, assignedStaffName, onDeleteOrder, onEditOrder }) => {
   const { user } = useAuth();
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(
     Math.floor((Date.now() - order.createdAt) / 1000)
@@ -135,6 +136,18 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
               title="Delete Order"
             >
               <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {onEditOrder && (user?.role === 'MANAGER' || user?.role === 'RECEPTIONIST') && (
+            activeStationId === 'intake' ||
+            (activeStationId === 'prep' && order.status === 'PLACED' && !order.assignedUserId)
+          ) && (
+            <button
+              onClick={() => onEditOrder(order)}
+              className="p-1 rounded-md text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors ml-1"
+              title="Edit Order"
+            >
+              <Pencil className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

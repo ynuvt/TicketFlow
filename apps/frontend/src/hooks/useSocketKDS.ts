@@ -403,6 +403,11 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
       setOrders((prev) => prev.filter((o) => o.id !== data.orderId));
     });
 
+    socket.on('order:update', (updatedOrder: Order) => {
+      console.log('[Socket] Order update received:', updatedOrder);
+      setOrders((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
+    });
+
     socket.on('user:connection_change', (data: { userId: string; online: boolean }) => {
       setOnlineUserIds((prev) => {
         const next = new Set(prev);
@@ -481,6 +486,20 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
       if (!socketRef.current || !socketRef.current.connected) return;
       socketRef.current.emit('order:delete', {
         orderId,
+        kitchenId: KITCHEN_ID,
+        userId: user?.id,
+        userRole: user?.role,
+      });
+    },
+    [user]
+  );
+
+  const updateOrder = useCallback(
+    (orderId: string, payload: Omit<CreateOrderPayload, 'kitchenId'>) => {
+      if (!socketRef.current || !socketRef.current.connected) return;
+      socketRef.current.emit('order:update', {
+        orderId,
+        ...payload,
         kitchenId: KITCHEN_ID,
         userId: user?.id,
         userRole: user?.role,
@@ -625,6 +644,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     togglePrintKot,
     createOrder,
     deleteOrder,
+    updateOrder,
     transitionOrder,
     toggleStationNetwork,
     toggleGlobalNetwork,

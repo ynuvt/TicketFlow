@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StationId } from '@ticketflow/types';
+import { StationId, Order } from '@ticketflow/types';
 import { useRouter } from './hooks/useRouter';
 import { useSocketKDS } from './hooks/useSocketKDS';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -24,6 +24,7 @@ function AppContent() {
   const { currentPath, navigate } = useRouter();
   const { user, hasStationAccess, isPathAllowed } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [isAuditLogOpen, setIsAuditLogOpen] = useState<boolean>(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
@@ -61,6 +62,7 @@ function AppContent() {
     togglePrintKot,
     createOrder,
     deleteOrder,
+    updateOrder,
     transitionOrder,
     toggleStationNetwork,
     toggleGlobalNetwork,
@@ -248,6 +250,10 @@ function AppContent() {
             onToggleStationNetwork={toggleStationNetwork}
             onOpenCreateModal={() => setIsCreateModalOpen(true)}
             onDeleteOrder={deleteOrder}
+            onEditOrder={(order) => {
+              setEditingOrder(order);
+              setIsCreateModalOpen(true);
+            }}
           />
         );
 
@@ -321,8 +327,13 @@ function AppContent() {
       {/* Create Order Modal */}
       <OrderCreatorModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setEditingOrder(null);
+        }}
         onCreateOrder={createOrder}
+        onUpdateOrder={updateOrder}
+        initialOrder={editingOrder}
       />
 
       {/* Real-time Event Audit Log Drawer */}

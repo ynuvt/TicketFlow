@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { CreateOrderPayload, OrderItem, StationId } from '@ticketflow/types';
+import React, { useState, useEffect } from 'react';
+import { CreateOrderPayload, OrderItem, StationId, Order } from '@ticketflow/types';
 import { X, Plus, Trash2, Sparkles, Receipt } from 'lucide-react';
 
 interface OrderCreatorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreateOrder: (payload: Omit<CreateOrderPayload, 'kitchenId'>) => void;
+  onUpdateOrder?: (orderId: string, payload: Omit<CreateOrderPayload, 'kitchenId'>) => void;
+  initialOrder?: Order | null;
 }
 
 const PRESET_ITEMS = [
@@ -21,6 +23,8 @@ export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
   isOpen,
   onClose,
   onCreateOrder,
+  onUpdateOrder,
+  initialOrder = null,
 }) => {
   const [customerName, setCustomerName] = useState('');
   const [priority, setPriority] = useState<'NORMAL' | 'HIGH' | 'VIP'>('NORMAL');
@@ -29,6 +33,24 @@ export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
   const [items, setItems] = useState<OrderItem[]>([
     { id: '1', name: 'Paneer Tikka Pizza (Veg)', quantity: 1, notes: 'Extra tandoori sauce' },
   ]);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialOrder) {
+        setCustomerName(initialOrder.customerName);
+        setPriority(initialOrder.priority);
+        setEstimatedPrepTime(initialOrder.estimatedPrepTime);
+        setTargetStation(initialOrder.currentStationId);
+        setItems(initialOrder.items);
+      } else {
+        setCustomerName('');
+        setPriority('NORMAL');
+        setEstimatedPrepTime(10);
+        setTargetStation('intake');
+        setItems([{ id: '1', name: 'Paneer Tikka Pizza (Veg)', quantity: 1, notes: 'Extra tandoori sauce' }]);
+      }
+    }
+  }, [isOpen, initialOrder]);
 
   if (!isOpen) return null;
 
@@ -54,13 +76,19 @@ export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
     e.preventDefault();
     if (!customerName.trim() || items.length === 0) return;
 
-    onCreateOrder({
+    const payload = {
       customerName: customerName.trim(),
       priority,
       estimatedPrepTime,
       stationId: targetStation,
       items,
-    });
+    };
+
+    if (initialOrder && onUpdateOrder) {
+      onUpdateOrder(initialOrder.id, payload);
+    } else {
+      onCreateOrder(payload);
+    }
 
     // Reset and close
     setCustomerName('');
@@ -86,8 +114,12 @@ export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
               <Receipt className="w-5 h-5" />
             </div>
             <div className="text-left">
-              <h2 className="text-base font-black text-slate-900 tracking-wider">The Wesee Pizzas</h2>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">New KOT Generation receipt</p>
+              <h2 className="text-base font-black text-slate-900 tracking-wider">
+                {initialOrder ? 'Edit Pizza KOT' : 'The Wesee Pizzas'}
+              </h2>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                {initialOrder ? `Editing KOT #${initialOrder.id.slice(-6).toUpperCase()}` : 'New KOT Generation receipt'}
+              </p>
             </div>
           </div>
           <button
@@ -113,32 +145,17 @@ export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
             />
           </div>
 
-          {/* Prep Time & Initial Station */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-black text-slate-700 uppercase mb-1">Est. Prep Time (Mins)</label>
-              <input
-                type="number"
-                min={1}
-                max={60}
-                value={estimatedPrepTime}
-                onChange={(e) => setEstimatedPrepTime(parseInt(e.target.value, 10) || 10)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-slate-950 focus:bg-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-black text-slate-700 uppercase mb-1">Start Station</label>
-              <select
-                value={targetStation}
-                onChange={(e) => setTargetStation(e.target.value as StationId)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-slate-950 focus:bg-white"
-              >
-                <option value="intake">Order Intake (PLACED)</option>
-                <option value="prep">Prep Line (PREPARING)</option>
-                <option value="grill">Grill & Cooking (PREPARING)</option>
-              </select>
-            </div>
+          {/* Prep Time */}
+          <div>
+            <label className="block text-xs font-black text-slate-700 uppercase mb-1">Est. Prep Time (Mins)</label>
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={estimatedPrepTime}
+              onChange={(e) => setEstimatedPrepTime(parseInt(e.target.value, 10) || 10)}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-slate-950 focus:bg-white"
+            />
           </div>
 
           {/* Quick Preset Buttons */}
@@ -212,7 +229,7 @@ export const OrderCreatorModal: React.FC<OrderCreatorModalProps> = ({
               className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-black text-xs disabled:opacity-50 transition-all flex items-center gap-1.5 font-mono cursor-pointer active:scale-95 shadow-md"
             >
               <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>Broadcast Ticket</span>
+              <span>{initialOrder ? 'Save Changes' : 'Broadcast Ticket'}</span>
             </button>
           </div>
         </form>
