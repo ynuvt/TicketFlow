@@ -106,7 +106,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [seedCount, setSeedCount] = useState<number | ''>(10);
   const [seedingProgress, setSeedingProgress] = useState<number | null>(null);
   const [isSeeding, setIsSeeding] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const seedingStopRef = React.useRef<boolean>(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSeedOrders = async () => {
     if (isSeeding) return;
@@ -212,6 +220,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       desc: 'Final order inspection and customer server pickup',
     },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] py-20 select-none">
+        <div className="relative flex items-center justify-center">
+          {/* Glowing Green Circular Spinner ring */}
+          <div className="absolute w-36 h-36 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin"></div>
+          {/* Pulse ring */}
+          <div className="absolute w-40 h-40 rounded-full border border-emerald-400/40 animate-ping duration-1000"></div>
+          {/* Logo */}
+          <img src="/logo.png" alt="Logo" className="w-24 h-24 object-contain z-10 rounded-3xl border-2 border-emerald-400 bg-white p-1 shadow-md" />
+        </div>
+        <p className="mt-12 text-sm font-mono font-black text-slate-500 uppercase tracking-widest animate-pulse">
+          Starting TicketFlow Admin Operations...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
