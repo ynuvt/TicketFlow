@@ -2,12 +2,3 @@
 > @ticketflow/frontend@1.0.0 build
 > tsc && vite build
 
-[36mvite v6.4.3 [32mbuilding for production...[36m[39m
-transforming...
-[32m✓[39m 1632 modules transformed.
-rendering chunks...
-computing gzip size...
-[2mdist/[22m[32mindex.html                 [39m[1m[2m  0.59 kB[22m[1m[22m[2m │ gzip:  0.37 kB[22m
-[2mdist/[22m[35massets/index-B23hIo3l.css  [39m[1m[2m 44.40 kB[22m[1m[22m[2m │ gzip:  7.83 kB[22m
-[2mdist/[22m[36massets/index-C8CAP3ye.js   [39m[1m[2m329.44 kB[22m[1m[22m[2m │ gzip: 91.85 kB[22m
-[32m✓ built in 6.96s[39m

@@ -106,17 +106,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [seedCount, setSeedCount] = useState<number | ''>(10);
   const [seedingProgress, setSeedingProgress] = useState<number | null>(null);
   const [isSeeding, setIsSeeding] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    try {
+      return !sessionStorage.getItem('ticketflow_admin_loaded');
+    } catch {
+      return true;
+    }
+  });
   const [sortOrder, setSortOrder] = useState<'LATEST' | 'OLDEST'>('OLDEST');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'READY' | 'PREPARING' | 'PLACED'>('ALL');
   const seedingStopRef = React.useRef<boolean>(false);
 
   useEffect(() => {
+    if (!isLoading) return;
     const timer = setTimeout(() => {
       setIsLoading(false);
+      try {
+        sessionStorage.setItem('ticketflow_admin_loaded', 'true');
+      } catch (err) {
+        console.error('Failed to set admin loaded flag:', err);
+      }
     }, 2000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isLoading]);
+
 
   const handleSeedOrders = async () => {
     if (isSeeding) return;

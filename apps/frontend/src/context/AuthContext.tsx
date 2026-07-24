@@ -67,6 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null);
     sessionStorage.removeItem(SESSION_STORAGE_USER_KEY);
+    sessionStorage.removeItem('ticketflow_admin_loaded');
     try {
       window.history.pushState({}, '', '/');
       window.dispatchEvent(new PopStateEvent('popstate'));
@@ -74,6 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('[AuthContext] Navigation reset failed:', err);
     }
   };
+
 
   const hasStationAccess = (stationId: string): boolean => {
     if (!user) return false;
