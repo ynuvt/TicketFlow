@@ -45,6 +45,14 @@ app.use((req, res, next) => {
 // Default Kitchen Instance
 const DEFAULT_KITCHEN_ID = 'kitchen-main';
 
+const stationNetworks: Record<string, boolean> = {
+  intake: true,
+  prep: true,
+  grill: true,
+  assembly: true,
+  expedite: true,
+};
+
 // Ensure Default Users exist on boot (Manager, Cook, Receptionist)
 userRepository.ensureDefaultUsers();
 
@@ -216,8 +224,8 @@ app.post('/api/db/clear', async (req: Request, res: Response) => {
   }
 });
 
-// Create Order (MANAGER and RECEPTIONIST only)
-app.post('/api/orders', authorizeRoles(['MANAGER', 'RECEPTIONIST']), async (req: Request, res: Response) => {
+// Create Order (MANAGER, RECEPTIONIST, and STAFF)
+app.post('/api/orders', authorizeRoles(['MANAGER', 'RECEPTIONIST', 'STAFF']), async (req: Request, res: Response) => {
   const data: CreateOrderPayload = req.body;
   const kitchenId = data.kitchenId || DEFAULT_KITCHEN_ID;
 
@@ -405,6 +413,7 @@ io.on('connection', (socket: Socket) => {
     }
 
     socket.join(room);
+    socket.emit('station:networks', stationNetworks);
     console.log(`[Socket] Client ${socket.id} joined ${room} for station ${stationId}`);
   });
 
@@ -437,6 +446,12 @@ io.on('connection', (socket: Socket) => {
         }
       }).catch(err => console.error('[Socket] Failed to find active orders on station:drop:', err));
     }
+  });
+
+  socket.on('station:network_toggle', ({ stationId, online }: { stationId: string; online: boolean }) => {
+    stationNetworks[stationId] = online;
+    io.emit('station:network_change', { stationId, online });
+    console.log(`[Socket] Station network status changed: ${stationId} -> ${online ? 'ONLINE' : 'OFFLINE'}`);
   });
 
   socket.on('disconnect', () => {
@@ -485,7 +500,7 @@ io.on('connection', (socket: Socket) => {
     const kitchenId = data.kitchenId || DEFAULT_KITCHEN_ID;
     const { userRole } = data;
 
-    if (userRole && userRole !== 'MANAGER' && userRole !== 'RECEPTIONIST') {
+    if (userRole && userRole !== 'MANAGER' && userRole !== 'RECEPTIONIST' && userRole !== 'STAFF') {
       socket.emit('order:error', { message: 'Forbidden: Insufficient privileges' });
       return;
     }
@@ -516,6 +531,31 @@ io.on('connection', (socket: Socket) => {
       io.to(room).emit('order:transition', clientEvent);
     } catch (err: any) {
       console.error('[Socket] Failed to create order in DB:', err.message);
+      socket.emit('order:error', { message: err.message });
+    }
+  });
+
+  socket.on('order:delete', async (data: { orderId: string; kitchenId?: string; userId?: string; userRole?: string }) => {
+    const kitchenId = data.kitchenId || DEFAULT_KITCHEN_ID;
+    const { userRole, userId } = data;
+
+    if (userRole && userRole !== 'MANAGER' && userRole !== 'RECEPTIONIST') {
+      socket.emit('order:error', { message: 'Forbidden: Insufficient privileges' });
+      return;
+    }
+
+    try {
+      await prisma.order.delete({
+        where: { id: data.orderId },
+      });
+
+      globalEventStore.removeEventsForOrder(kitchenId, data.orderId);
+
+      const room = `kitchen:${kitchenId}`;
+      io.to(room).emit('order:delete', { orderId: data.orderId });
+      console.log(`[Socket] Order ${data.orderId} deleted by user ${userId}`);
+    } catch (err: any) {
+      console.error('[Socket] Failed to delete order in DB:', err.message);
       socket.emit('order:error', { message: err.message });
     }
   });

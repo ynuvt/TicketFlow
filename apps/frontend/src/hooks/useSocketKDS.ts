@@ -100,11 +100,11 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         orderMap.set(event.orderId, newOrder);
 
         // Sound trigger for new order
-        if (payload.priority === 'VIP' || payload.priority === 'HIGH') {
-          kitchenAudio.playVipTicketSound();
-        } else {
-          kitchenAudio.playNewTicketSound();
-        }
+        // if (payload.priority === 'VIP' || payload.priority === 'HIGH') {
+        //   kitchenAudio.playVipTicketSound();
+        // } else {
+        //   kitchenAudio.playNewTicketSound();
+        // }
       } else if (event.type === 'ORDER_TRANSITIONED') {
         const existing = orderMap.get(event.orderId);
         const updated: Order = {
@@ -123,11 +123,11 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         orderMap.set(event.orderId, updated);
 
         // Sound trigger for state transition or served
-        if (payload.newStatus === 'SERVED') {
-          kitchenAudio.playServedSound();
-        } else {
-          kitchenAudio.playStatusTransitionSound();
-        }
+        // if (payload.newStatus === 'SERVED') {
+        //   kitchenAudio.playServedSound();
+        // } else {
+        //   kitchenAudio.playStatusTransitionSound();
+        // }
       }
 
       return Array.from(orderMap.values());
@@ -398,6 +398,11 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
       lastSeqRef.current = 0;
     });
 
+    socket.on('order:delete', (data: { orderId: string }) => {
+      console.log(`[Socket] Order ${data.orderId} deleted notification received.`);
+      setOrders((prev) => prev.filter((o) => o.id !== data.orderId));
+    });
+
     socket.on('user:connection_change', (data: { userId: string; online: boolean }) => {
       setOnlineUserIds((prev) => {
         const next = new Set(prev);
@@ -408,6 +413,19 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         }
         return next;
       });
+    });
+
+    socket.on('station:networks', (networks: StationNetworkMap) => {
+      console.log('[Socket] Initial station networks received:', networks);
+      setStationNetworks(networks);
+    });
+
+    socket.on('station:network_change', (data: { stationId: StationId; online: boolean }) => {
+      console.log(`[Socket] Station network changed: ${data.stationId} -> ${data.online ? 'ONLINE' : 'OFFLINE'}`);
+      setStationNetworks((prev) => ({
+        ...prev,
+        [data.stationId]: data.online,
+      }));
     });
 
     // Initial fetch of online users
@@ -458,6 +476,19 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     [user]
   );
 
+  const deleteOrder = useCallback(
+    (orderId: string) => {
+      if (!socketRef.current || !socketRef.current.connected) return;
+      socketRef.current.emit('order:delete', {
+        orderId,
+        kitchenId: KITCHEN_ID,
+        userId: user?.id,
+        userRole: user?.role,
+      });
+    },
+    [user]
+  );
+
   const transitionOrder = useCallback(
     (orderId: string, currentStatus: OrderStatus, newStatus: OrderStatus, stationId?: StationId) => {
       // Optimistic local state update
@@ -492,36 +523,45 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
   // Toggle station network ON/OFF manually
   const toggleStationNetwork = useCallback(
     (stationId: StationId) => {
+      const isCurrentlyOnline = stationNetworksRef.current[stationId] !== false;
+      const nextOnlineState = !isCurrentlyOnline;
+
+      console.log(`[Network Simulation] Toggling station '${stationId}' network to: ${nextOnlineState ? 'ONLINE' : 'OFFLINE'}`);
+
+      // Emit to server so all clients sync
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('station:network_toggle', { stationId, online: nextOnlineState });
+      }
+
+      if (nextOnlineState) {
+        if (activeStationIdRef.current === stationId) {
+          socketRef.current?.connect();
+          socketRef.current?.once('connect', () => {
+            socketRef.current?.emit('station:network_toggle', { stationId, online: true });
+          });
+        }
+        setTimeout(() => {
+          requestReplay();
+        }, 100);
+      } else {
+        if (activeStationIdRef.current === stationId) {
+          socketRef.current?.emit('station:drop', {
+            stationId,
+            userId: user?.id,
+          });
+          socketRef.current?.disconnect();
+        }
+      }
+
       setStationNetworks((prev) => {
-        const updated = { ...prev, [stationId]: !prev[stationId] };
+        const updated = { ...prev, [stationId]: nextOnlineState };
         try {
           sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updated));
         } catch {}
-
-        const isTurningOn = updated[stationId];
-        if (isTurningOn) {
-          console.log(`[Network Simulation] Station '${stationId}' network turned ON. Triggering replay sync...`);
-          if (activeStationIdRef.current === stationId) {
-            socketRef.current?.connect();
-          }
-          setTimeout(() => {
-            requestReplay();
-          }, 100);
-        } else {
-          console.log(`[Network Simulation] Station '${stationId}' network turned OFFLINE.`);
-          if (activeStationIdRef.current === stationId) {
-            socketRef.current?.emit('station:drop', {
-              stationId,
-              userId: user?.id,
-            });
-            socketRef.current?.disconnect();
-          }
-        }
-
         return updated;
       });
     },
-    [requestReplay]
+    [requestReplay, user]
   );
 
   // Toggle all stations global network ON/OFF
@@ -534,6 +574,13 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
         assembly: online,
         expedite: online,
       };
+
+      if (socketRef.current && socketRef.current.connected) {
+        Object.keys(newNetworks).forEach((stationId) => {
+          socketRef.current?.emit('station:network_toggle', { stationId, online });
+        });
+      }
+
       try {
         sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(newNetworks));
       } catch {}
@@ -577,6 +624,7 @@ export function useSocketKDS(activeStationId: StationId | 'overview' | 'manager'
     printKotEnabled,
     togglePrintKot,
     createOrder,
+    deleteOrder,
     transitionOrder,
     toggleStationNetwork,
     toggleGlobalNetwork,

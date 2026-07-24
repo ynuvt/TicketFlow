@@ -205,7 +205,8 @@ export class OrderRepository {
       const assignedUserId = await this.routeOrderToStaff(tx, stationId, kitchenId);
 
       if (assignedUserId) {
-        const targetStatus = oldestWaiting.status || (stationId === 'assembly' || stationId === 'expedite' ? 'READY' : 'PREPARING');
+        // Set the active status based on the station (PREPARING for prep/grill, READY for assembly/expedite)
+        const targetStatus = (stationId === 'assembly' || stationId === 'expedite') ? 'READY' : 'PREPARING';
 
         // Assign the waiting order to the staff member
         const updatedOrder = await tx.order.update({

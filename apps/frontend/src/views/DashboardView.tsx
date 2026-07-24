@@ -400,9 +400,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             const isOnline = stationNetworks[st.id];
 
             return (
-              <div
+              <button
                 key={st.id}
-                className="bg-white border border-slate-200/80 rounded-xl p-4 hover:border-slate-300 transition-all shadow-xs"
+                onClick={() => onToggleStationNetwork(st.id)}
+                className={`bg-white border rounded-xl p-4 text-left transition-all shadow-xs w-full hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  isOnline ? 'border-slate-200/80 hover:border-slate-300' : 'border-rose-200 bg-rose-50/20 hover:border-rose-300'
+                }`}
+                title={`Click to toggle ${st.title} online/offline`}
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <h3 className="text-xs font-bold text-slate-900">{st.title}</h3>
@@ -415,7 +419,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 leading-relaxed">{st.desc}</p>
-              </div>
+              </button>
             );
           })}
         </div>

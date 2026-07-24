@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Order, OrderStatus, StationId } from '@ticketflow/types';
 import { STATIONS } from '../types/kds';
-import { Clock, ArrowRight, CheckCircle2, User, ShieldAlert, Receipt, Download } from 'lucide-react';
+import { Clock, ArrowRight, CheckCircle2, User, ShieldAlert, Receipt, Download, Trash2 } from 'lucide-react';
 import { downloadKot } from '../utils/kot';
+import { useAuth } from '../context/AuthContext';
 
 interface OrderTicketProps {
   order: Order;
   onTransitionOrder: (orderId: string, currentStatus: OrderStatus, newStatus: OrderStatus, stationId?: StationId) => void;
   activeStationId?: StationId | 'overview' | 'manager';
   assignedStaffName?: string;
+  onDeleteOrder?: (orderId: string) => void;
 }
 
-export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrder, activeStationId, assignedStaffName }) => {
+export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrder, activeStationId, assignedStaffName, onDeleteOrder }) => {
+  const { user } = useAuth();
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(
     Math.floor((Date.now() - order.createdAt) / 1000)
   );
@@ -45,7 +48,7 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
 
     const station = order.currentStationId || 'intake';
 
-    if (station === 'intake' || order.status === 'PLACED') {
+    if (station === 'intake') {
       return {
         targetStatus: 'PREPARING' as OrderStatus,
         targetStation: 'prep' as StationId,
@@ -119,6 +122,19 @@ export const OrderTicket: React.FC<OrderTicketProps> = ({ order, onTransitionOrd
               title="Download KOT Receipt"
             >
               <Download className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {activeStationId === 'intake' && (user?.role === 'MANAGER' || user?.role === 'RECEPTIONIST') && onDeleteOrder && (
+            <button
+              onClick={() => {
+                if (window.confirm(`Are you sure you want to delete KOT ${kotShortId}?`)) {
+                  onDeleteOrder(order.id);
+                }
+              }}
+              className="p-1 rounded-md text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors ml-1"
+              title="Delete Order"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

@@ -60,6 +60,7 @@ function AppContent() {
     printKotEnabled,
     togglePrintKot,
     createOrder,
+    deleteOrder,
     transitionOrder,
     toggleStationNetwork,
     toggleGlobalNetwork,
@@ -246,6 +247,7 @@ function AppContent() {
             isStationOnline={stationNetworks[stId]}
             onToggleStationNetwork={toggleStationNetwork}
             onOpenCreateModal={() => setIsCreateModalOpen(true)}
+            onDeleteOrder={deleteOrder}
           />
         );
 

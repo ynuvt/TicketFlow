@@ -12,6 +12,7 @@ interface StationBoardViewProps {
   isStationOnline: boolean;
   onToggleStationNetwork: (stationId: StationId) => void;
   onOpenCreateModal?: () => void;
+  onDeleteOrder?: (orderId: string) => void;
 }
 
 export const StationBoardView: React.FC<StationBoardViewProps> = ({
@@ -21,12 +22,14 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
   isStationOnline,
   onToggleStationNetwork,
   onOpenCreateModal,
+  onDeleteOrder,
 }) => {
   const { user, authFetch } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [customerEta, setCustomerEta] = useState<number | null>(null);
   const [stationSummaries, setStationSummaries] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [sortOrder, setSortOrder] = useState<'oldest' | 'latest'>('oldest');
   const stationConfig = STATIONS[stationId] || STATIONS.intake;
 
   // Fetch live Customer ETA metrics for Intake board
@@ -102,7 +105,11 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
         return true;
       }
     })
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    .sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      return sortOrder === 'oldest' ? timeA - timeB : timeB - timeA;
+    });
 
   const calculateOrderEstimatedServingTime = (order: Order, summaries: any) => {
     const stationsOrder = ['prep', 'grill', 'assembly', 'expedite'];
@@ -243,6 +250,17 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
             />
           )}
 
+          {stationId === 'intake' && (
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'oldest' | 'latest')}
+              className="bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-900 transition-all cursor-pointer"
+            >
+              <option value="oldest">Oldest First</option>
+              <option value="latest">Latest First</option>
+            </select>
+          )}
+
           {stationId === 'intake' && onOpenCreateModal && (
             <button
               onClick={onOpenCreateModal}
@@ -361,6 +379,7 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
                       onTransitionOrder={onTransitionOrder}
                       activeStationId={stationId}
                       assignedStaffName={getAssignedUserName(order.assignedUserId)}
+                      onDeleteOrder={onDeleteOrder}
                     />
                     {stationId === 'intake' && (
                       <div className="mt-2 bg-slate-900 border border-slate-900 text-white p-2.5 rounded-xl text-[10px] font-mono font-black flex items-center justify-between shadow-sm">

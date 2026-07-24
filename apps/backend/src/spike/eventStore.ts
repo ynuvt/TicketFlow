@@ -60,6 +60,12 @@ export class InMemoryEventStore {
     return this.sequences.get(kitchenId) || 0;
   }
 
+  public removeEventsForOrder(kitchenId: string, orderId: string) {
+    const kitchenEvents = this.events.get(kitchenId) || [];
+    const filtered = kitchenEvents.filter((e) => e.orderId !== orderId);
+    this.events.set(kitchenId, filtered);
+  }
+
   public clear() {
     this.events.clear();
     this.sequences.clear();
