@@ -107,6 +107,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [seedingProgress, setSeedingProgress] = useState<number | null>(null);
   const [isSeeding, setIsSeeding] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [sortOrder, setSortOrder] = useState<'LATEST' | 'OLDEST'>('OLDEST');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'READY' | 'PREPARING' | 'PLACED'>('ALL');
   const seedingStopRef = React.useRef<boolean>(false);
 
   useEffect(() => {
@@ -192,6 +194,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const activeOrders = orders.filter((o) => o.status !== 'SERVED');
   const servedOrders = orders.filter((o) => o.status === 'SERVED');
   const vipOrders = orders.filter((o) => (o.priority === 'VIP' || o.priority === 'HIGH') && o.status !== 'SERVED');
+
+  const filteredActiveOrders = orders
+    .filter((o) => o.status !== 'SERVED')
+    .filter((o) => {
+      if (statusFilter === 'ALL') return true;
+      return o.status === statusFilter;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      return sortOrder === 'LATEST' ? timeB - timeA : timeA - timeB;
+    });
 
   const stationList: { id: StationId; title: string; desc: string }[] = [
     {
@@ -453,17 +467,53 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Active Order Queue Overview Table Card */}
       <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm space-y-4">
-        <h2 className="text-base font-bold text-slate-900">Active Order Queue Overview</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Active Order Queue Overview</h2>
+            <span className="bg-slate-100 text-slate-650 px-2 py-0.5 rounded-full text-[10px] font-mono font-black border border-slate-200">
+              {filteredActiveOrders.length}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Status Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider font-mono">Status:</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-slate-950 cursor-pointer"
+              >
+                <option value="ALL">All States</option>
+                <option value="PLACED">Placed (PLACED)</option>
+                <option value="PREPARING">Preparing (PREPARING)</option>
+                <option value="READY">Ready (READY)</option>
+              </select>
+            </div>
 
-        {activeOrders.length === 0 ? (
+            {/* Sort Order Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider font-mono">Sort:</span>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as any)}
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-slate-950 cursor-pointer"
+              >
+                <option value="OLDEST">Oldest First</option>
+                <option value="LATEST">Latest First</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {filteredActiveOrders.length === 0 ? (
           /* Empty State Matching Screenshot */
           <div className="py-16 text-center flex flex-col items-center justify-center space-y-3">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center">
               <Inbox className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-800">No active orders in queue</h3>
-              <p className="text-xs text-slate-400 mt-1">New orders will appear here in real-time</p>
+              <h3 className="text-sm font-bold text-slate-800">No matching orders in queue</h3>
+              <p className="text-xs text-slate-400 mt-1">Try adjusting your filter settings</p>
             </div>
           </div>
         ) : (
@@ -482,7 +532,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {activeOrders.map((ord) => (
+                {filteredActiveOrders.map((ord) => (
                   <tr key={ord.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 font-mono font-bold text-slate-900">
                       #{ord.id.slice(-6).toUpperCase()}

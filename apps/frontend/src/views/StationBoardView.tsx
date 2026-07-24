@@ -162,7 +162,7 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
   });
 
   return (
-    <div className="space-y-6 font-sans">
+    <div className="flex flex-col h-[calc(100vh-120px)] md:h-[calc(100vh-140px)] lg:h-[calc(100vh-160px)] gap-6 font-sans relative overflow-hidden">
       {/* Intake Dashboard Metrics Panel */}
       {stationId === 'intake' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm font-mono text-slate-900">
@@ -307,64 +307,66 @@ export const StationBoardView: React.FC<StationBoardViewProps> = ({
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Active queue displays */}
-          {displayedOrders.length === 0 ? (
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-16 text-center space-y-3 shadow-sm">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center">
-                <CheckCircle2 className="w-7 h-7" />
+        <div className="flex-1 min-h-0 relative">
+          {/* Active queue displays - Scrollable */}
+          <div className="absolute inset-0 overflow-y-auto pb-32 pr-2">
+            {displayedOrders.length === 0 ? (
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-16 text-center space-y-3 shadow-sm">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center">
+                  <CheckCircle2 className="w-7 h-7" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800">Your Queue is Clear</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  {user?.role === 'STAFF'
+                    ? 'Great job! You have no active tickets assigned to you at the moment.'
+                    : 'No active assigned tickets pending at this station.'}
+                </p>
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Your Queue is Clear</h3>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                {user?.role === 'STAFF'
-                  ? 'Great job! You have no active tickets assigned to you at the moment.'
-                  : 'No active assigned tickets pending at this station.'}
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {displayedOrders.map((order) => {
-                const orderEta = calculateOrderEstimatedServingTime(order, stationSummaries);
-                const highlightRed = !isStationOnline;
-                return (
-                  <div key={order.id} className="relative group">
-                    <div 
-                      className={`rounded-2xl p-1 transition-all ${
-                        highlightRed 
-                          ? 'border-2 border-rose-600 bg-rose-50/50 shadow-md shadow-rose-600/10 w-full' 
-                          : 'border-transparent'
-                      }`}
-                    >
-                      {highlightRed && (
-                        <div className="bg-rose-600 text-white text-[9px] font-black text-center py-1 rounded-t-lg font-mono uppercase tracking-wider mb-1.5 flex items-center justify-center gap-1">
-                          <WifiOff className="w-3.5 h-3.5 animate-pulse" />
-                          <span>No Socket Connection</span>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {displayedOrders.map((order) => {
+                  const orderEta = calculateOrderEstimatedServingTime(order, stationSummaries);
+                  const highlightRed = !isStationOnline;
+                  return (
+                    <div key={order.id} className="relative group">
+                      <div 
+                        className={`rounded-2xl p-1 transition-all ${
+                          highlightRed 
+                            ? 'border-2 border-rose-600 bg-rose-50/50 shadow-md shadow-rose-600/10 w-full' 
+                            : 'border-transparent'
+                        }`}
+                      >
+                        {highlightRed && (
+                          <div className="bg-rose-600 text-white text-[9px] font-black text-center py-1 rounded-t-lg font-mono uppercase tracking-wider mb-1.5 flex items-center justify-center gap-1">
+                            <WifiOff className="w-3.5 h-3.5 animate-pulse" />
+                            <span>No Socket Connection</span>
+                          </div>
+                        )}
+                        <OrderTicket
+                          order={order}
+                          onTransitionOrder={onTransitionOrder}
+                          activeStationId={stationId}
+                          assignedStaffName={getAssignedUserName(order.assignedUserId)}
+                          onDeleteOrder={onDeleteOrder}
+                          onEditOrder={onEditOrder}
+                        />
+                      </div>
+                      {stationId === 'intake' && (
+                        <div className="mt-2 bg-slate-900 border border-slate-900 text-white p-2.5 rounded-xl text-[10px] font-mono font-black flex items-center justify-between shadow-sm">
+                          <span>EST. TIME TO SERVE:</span>
+                          <span className="text-amber-300 font-extrabold text-xs">{orderEta} mins</span>
                         </div>
                       )}
-                      <OrderTicket
-                        order={order}
-                        onTransitionOrder={onTransitionOrder}
-                        activeStationId={stationId}
-                        assignedStaffName={getAssignedUserName(order.assignedUserId)}
-                        onDeleteOrder={onDeleteOrder}
-                        onEditOrder={onEditOrder}
-                      />
                     </div>
-                    {stationId === 'intake' && (
-                      <div className="mt-2 bg-slate-900 border border-slate-900 text-white p-2.5 rounded-xl text-[10px] font-mono font-black flex items-center justify-between shadow-sm">
-                        <span>EST. TIME TO SERVE:</span>
-                        <span className="text-amber-300 font-extrabold text-xs">{orderEta} mins</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-          {/* Waiting List Bar (circular queue indicators at bottom of dashboard) */}
+          {/* Floating Waiting List Bar - Anchored to the bottom of the container */}
           {stationId !== 'intake' && (
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center gap-4 justify-between">
+            <div className="absolute bottom-2 left-2 right-2 md:bottom-4 md:left-4 md:right-4 z-20 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl p-4 shadow-xl flex flex-col sm:flex-row items-center gap-4 justify-between">
               <div className="flex items-center gap-3.5 w-full sm:w-auto">
                 <div className="relative flex">
                   {waitingOrders.length > 0 && (
